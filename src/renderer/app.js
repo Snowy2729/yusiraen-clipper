@@ -162,7 +162,7 @@ async function connectFlow() {
   }
 }
 $("connectBtn").onclick = connectFlow;
-$("slugInput").onkeydown = (e) => e.key === "Enter" && connectFlow();
+$("slugInput").onkeydown = (e) => { if (e.key === "Enter") connectFlow(); };
 
 function renderLiveTabs() {
   const tabs = liveList

@@ -128,7 +128,7 @@ async function doConnect() {
   renderPanelState();
 }
 $("connectBtn").onclick = doConnect;
-$("slugInput").onkeydown = (e) => e.key === "Enter" && doConnect();
+$("slugInput").onkeydown = (e) => { if (e.key === "Enter") doConnect(); };
 $("leaveBtn").onclick = async () => {
   await api.disconnect();
 };
