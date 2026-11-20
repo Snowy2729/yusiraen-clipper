@@ -1,0 +1,25 @@
+{
+  "name": "yusiraen-mod",
+  "productName": "Yusiraen Mod",
+  "version": "1.0.0",
+  "description": "Kick sohbetinde küfür, hakaret, kavga, spam ve caps yazanları canlı yakalayan moderatör paneli",
+  "author": "Yusiraen",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.yusiraen.mod",
+    "productName": "Yusiraen Mod",
+    "icon": "build/icon.ico",
+    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "win": { "target": "dir", "icon": "build/icon.ico" }
+  }
+}

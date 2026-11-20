@@ -1,0 +1,80 @@
+name: Release (Yusiraen Mod)
+
+# mod/package.json'daki sürüm değişip main'e gönderilince, o sürüm henüz yayınlanmamışsa
+# Yusiraen Mod'un Windows kurulumunu derler ve "mod-vX.Y.Z" etiketiyle yayınlar.
+# Bu sürümler "latest" olarak işaretlenmez; böylece Yusiraen Clipper'ın güncellemelerine karışmaz.
+on:
+  push:
+    branches: [main]
+    paths: ["mod/**", ".github/workflows/mod-release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: mod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bu sürüm zaten yayınlandı mı?
+        id: ver
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="mod-v$(node -p "require('./package.json').version")"
+          echo "tag=$VER" >> "$GITHUB_OUTPUT"
+          if gh release view "$VER" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "$VER zaten yayınlanmış, atlanıyor."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.ver.outputs.skip == 'false'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mod/package-lock.json
+
+      - name: Bağımlılıklar
+        if: steps.ver.outputs.skip == 'false'
+        run: npm ci
+
+      - name: Uygulamayı paketle
+        if: steps.ver.outputs.skip == 'false'
+        run: npx electron-builder --win dir --x64 --publish never
+
+      - name: Kurulum dosyasını oluştur (NSIS)
+        if: steps.ver.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          $ver = node -p "require('./package.json').version"
+          $nsi = Get-Content build/installer.nsi -Raw
+          $nsi = $nsi -replace '!define VER "[^"]*"', "!define VER `"$ver`""
+          $nsi = $nsi -replace 'VIProductVersion "[^"]*"', "VIProductVersion `"$ver.0`""
+          Set-Content build/installer.nsi $nsi -Encoding utf8BOM
+          $mk = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $mk)) { choco install nsis -y --no-progress; $mk = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          Push-Location build
+          & $mk /INPUTCHARSET UTF8 /V2 installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Pop-Location
+          Move-Item "dist/Yusiraen Mod Kurulum.exe" "dist/Yusiraen-Mod-Kurulum.exe"
+
+      - name: GitHub Release yayınla
+        if: steps.ver.outputs.skip == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          NOTES="release-notes/${TAG}.md"
+          [ -f "$NOTES" ] || echo "Yusiraen Mod ${TAG}" > "$NOTES"
+          gh release create "$TAG" "dist/Yusiraen-Mod-Kurulum.exe" --target "$GITHUB_SHA" --latest=false \
+            --title "Yusiraen Mod ${TAG#mod-}" --notes-file "$NOTES"

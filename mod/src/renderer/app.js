@@ -1,0 +1,460 @@
+const $ = (id) => document.getElementById(id);
+let settings = null;
+let auth = null;
+let connected = null; // {channel, role, me}
+const suspects = new Map(); // key -> özet
+let susFilter = "all";
+let susSort = "new";
+let selectedKey = null;
+let drawerKey = null;
+let drawerData = null;
+let paused = false;
+let pausedNew = 0;
+let msgCount = 0;
+let flagCount = 0;
+const MAX_FEED = 500;
+const CAT_LABEL = { kufur: "Küfür", hakaret: "Hakaret", tehdit: "Tehdit", kavga: "Kavga", spam: "Spam", flood: "Flood", caps: "Caps", link: "Link", ozel: "Özel kelime" };
+
+// ---------- yardımcılar ----------
+function esc(t) {
+  return String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function fmtMsg(t) {
+  return esc(t).replace(/\[emote:\d+:([^\]]*)\]/g, (_, n) => `<span class="em">:${n}:</span>`);
+}
+function hhmmss(t) {
+  return new Date(t).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+function ago(t) {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  return s < 60 ? `${s} sn` : s < 3600 ? `${Math.floor(s / 60)} dk` : `${Math.floor(s / 3600)} sa`;
+}
+function nameColor(n, c) {
+  if (c) return c;
+  let h = 0;
+  for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h},65%,65%)`;
+}
+function avatar(el, name, url) {
+  el.style.backgroundImage = url ? `url("${url}")` : "";
+  el.textContent = url ? "" : (name || "?")[0].toUpperCase();
+}
+let toastT;
+function toast(text, undo) {
+  $("toastText").textContent = text;
+  $("toastUndo").classList.toggle("hidden", !undo);
+  $("toastUndo").onclick = undo ? () => { undo(); $("toast").classList.remove("show"); } : null;
+  $("toast").classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => $("toast").classList.remove("show"), undo ? 6000 : 2800);
+}
+function modal(title, html, buttons) {
+  return new Promise((res) => {
+    $("mTitle").textContent = title;
+    $("mBody").innerHTML = html;
+    $("mBtns").innerHTML = "";
+    for (const b of buttons) {
+      const el = document.createElement("button");
+      el.className = "btn " + (b.kind || "");
+      el.textContent = b.label;
+      el.onclick = () => {
+        const inp = $("mBody").querySelector("input");
+        $("modal").classList.add("hidden");
+        res(b.value === "input" ? (inp ? inp.value : "") : b.value);
+      };
+      $("mBtns").appendChild(el);
+    }
+    $("modal").classList.remove("hidden");
+    const inp = $("mBody").querySelector("input");
+    if (inp) setTimeout(() => inp.focus(), 50);
+  });
+}
+let actx = null;
+function beep() {
+  if (!settings || !settings.sound) return;
+  try {
+    actx = actx || new AudioContext();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.08, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.25);
+    o.connect(g).connect(actx.destination);
+    o.start();
+    o.stop(actx.currentTime + 0.26);
+  } catch (_) {}
+}
+
+// ---------- sekmeler ----------
+document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showView(t.dataset.view)));
+function showView(v) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === v));
+  document.querySelectorAll(".view").forEach((s) => s.classList.toggle("active", s.id === "view-" + v));
+  if (v === "settings") fillSettings();
+}
+
+// ---------- hesap / giriş ----------
+async function refreshAuth() {
+  auth = await api.authStatus();
+  const box = $("acctBox");
+  if (auth.loggedIn && auth.me) {
+    box.innerHTML = `<div class="avatar sm" id="meAv"></div><b>${esc(auth.me.name)}</b>`;
+    avatar($("meAv"), auth.me.name, auth.me.avatar);
+  } else box.innerHTML = auth.hasClient ? `<button class="btn small primary" id="loginTop">Kick ile giriş yap</button>` : "";
+  const lt = $("loginTop");
+  if (lt) lt.onclick = doLogin;
+  renderPanelState();
+}
+async function doLogin() {
+  toast("Tarayıcıda Kick girişi açıldı, izin ver...");
+  const r = await api.authLogin();
+  if (r.error) return modal("Giriş yapılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
+  toast(`Hoş geldin ${r.me ? r.me.name : ""} ✓`);
+  refreshAuth();
+}
+function renderPanelState() {
+  const ready = auth && auth.loggedIn;
+  $("onboard").classList.toggle("hidden", ready || !!connected);
+  $("connectCard").classList.toggle("hidden", !ready || !!connected);
+  $("board").classList.toggle("hidden", !connected);
+  $("chanBox").classList.toggle("hidden", !connected);
+  if (!ready) {
+    $("onboardBody").innerHTML = auth && auth.hasClient
+      ? `<button class="btn primary big" id="obLogin">Kick ile giriş yap</button>`
+      : `<p>Başlamak için Ayarlar'dan <b>Kick uygulama bilgilerini</b> gir ya da sana verilen <b>ekip kodunu</b> yapıştır.</p><button class="btn primary" id="obSet">Ayarlara git</button>`;
+    const a = $("obLogin"), b = $("obSet");
+    if (a) a.onclick = doLogin;
+    if (b) b.onclick = () => showView("settings");
+  }
+  if (ready && !connected && settings) {
+    $("lastChips").innerHTML = settings.lastChannel ? `<span class="chip" data-c="${esc(settings.lastChannel)}">${esc(settings.lastChannel)}</span>` : "";
+    $("lastChips").querySelectorAll(".chip").forEach((c) => (c.onclick = () => (($("slugInput").value = c.dataset.c), doConnect())));
+  }
+}
+
+// ---------- bağlan ----------
+async function doConnect() {
+  const slug = $("slugInput").value.trim() || (settings && settings.lastChannel) || "";
+  if (!slug) return;
+  $("connectBtn").disabled = true;
+  $("connectMsg").className = "status-msg info";
+  $("connectMsg").textContent = "Bağlanılıyor, moderatörlük kontrol ediliyor...";
+  const r = await api.connect(slug);
+  $("connectBtn").disabled = false;
+  if (r.error) {
+    $("connectMsg").className = "status-msg";
+    $("connectMsg").textContent = (r.denied ? "⛔ " : "") + r.error;
+    return;
+  }
+  $("connectMsg").textContent = "";
+  connected = r;
+  suspects.clear();
+  $("feed").innerHTML = "";
+  msgCount = flagCount = 0;
+  avatar($("chanAvatar"), r.channel.name, r.channel.avatar);
+  $("chanName").textContent = r.channel.name;
+  $("chanLive").classList.toggle("hidden", !r.channel.live);
+  $("chanSub").textContent = r.channel.live ? `${(r.channel.viewers || 0).toLocaleString("tr-TR")} izleyici` : "yayında değil";
+  $("chanRole").textContent = r.role;
+  renderSuspects();
+  renderPanelState();
+}
+$("connectBtn").onclick = doConnect;
+$("slugInput").onkeydown = (e) => e.key === "Enter" && doConnect();
+$("leaveBtn").onclick = async () => {
+  await api.disconnect();
+};
+api.onDisconnected(() => {
+  connected = null;
+  closeDrawer();
+  renderPanelState();
+});
+const ST = { connecting: "· bağlanıyor", connected: "· bağlandı", listening: "· dinleniyor", reconnecting: "· yeniden bağlanıyor..." };
+api.onStatus((s) => ($("connStatus").textContent = ST[s] || ""));
+
+// ---------- canlı akış ----------
+const feed = $("feed");
+feed.addEventListener("mouseenter", () => { paused = true; pausedNew = 0; });
+feed.addEventListener("mouseleave", () => {
+  paused = false;
+  $("pausedPill").classList.add("hidden");
+  feed.scrollTop = feed.scrollHeight;
+});
+function msgHtml(m) {
+  const sev = m.maxSev || 0;
+  const bd = (m.badges || []).map((b) => (/broadcaster/i.test(b) ? "🎥" : /moderator/i.test(b) ? "🛡" : /vip/i.test(b) ? "💎" : /subscriber|founder/i.test(b) ? "★" : "")).join("");
+  const fl = (m.flags || []).map((f) => `<span class="fl s${f.sev}" title="${esc(f.match || "")}">${esc(f.label)}</span>`).join("");
+  return `<div class="msg ${sev ? "f" + sev : ""}" data-id="${esc(m.id || "")}"><span class="tm">${hhmmss(m.t)}</span>${bd ? `<span class="bd">${bd}</span>` : ""}<span class="un" data-k="${esc(m.key)}" style="color:${nameColor(m.u, m.color)}">${esc(m.u)}</span>${fmtMsg(m.m)}${fl}</div>`;
+}
+feed.addEventListener("click", (e) => {
+  const k = e.target.dataset && e.target.dataset.k;
+  if (k) openDrawer(k);
+});
+
+api.onBatch(({ messages, users }) => {
+  if (!connected) return;
+  const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
+  feed.insertAdjacentHTML("beforeend", messages.map(msgHtml).join(""));
+  while (feed.childElementCount > MAX_FEED) feed.firstElementChild.remove();
+  msgCount += messages.length;
+  const newFlags = messages.filter((m) => m.maxSev > 0);
+  flagCount += newFlags.length;
+  if (paused) {
+    pausedNew += messages.length;
+    $("pausedNew").textContent = pausedNew;
+    $("pausedPill").classList.remove("hidden");
+  } else if (atBottom || true) feed.scrollTop = feed.scrollHeight;
+  $("feedStats").textContent = `${msgCount.toLocaleString("tr-TR")} mesaj · ${flagCount} işaretli`;
+  const fresh = new Set();
+  for (const u of users) {
+    const prev = suspects.get(u.key);
+    if (!prev || u.lastAt > prev.lastAt) fresh.add(u.key);
+    suspects.set(u.key, u);
+  }
+  if (newFlags.some((m) => m.maxSev >= 3)) beep();
+  renderSuspects(fresh);
+  if (drawerKey && users.some((u) => u.key === drawerKey)) loadDrawer(drawerKey, true);
+  if (drawerKey && messages.some((m) => m.key === drawerKey)) loadDrawer(drawerKey, true);
+});
+
+api.onModEvent((e) => {
+  if (e.type === "MessageDeletedEvent" && e.data && e.data.message) {
+    const el = feed.querySelector(`.msg[data-id="${CSS.escape(e.data.message.id)}"]`);
+    if (el) el.classList.add("deleted");
+  }
+});
+
+// ---------- şüpheliler ----------
+function visibleSuspects() {
+  return [...suspects.values()].filter((u) => u.flagged > 0 && !(u.dismissedAt && u.lastAt <= u.dismissedAt));
+}
+function renderSuspects(fresh = new Set()) {
+  const all = visibleSuspects();
+  const counts = {};
+  for (const u of all) for (const c of Object.keys(u.cats)) counts[c] = (counts[c] || 0) + 1;
+  $("susFilters").innerHTML = [["all", "Tümü", all.length], ...Object.keys(CAT_LABEL).filter((c) => counts[c]).map((c) => [c, CAT_LABEL[c], counts[c]])]
+    .map(([k, l, n]) => `<span class="chip ${susFilter === k ? "on" : ""}" data-f="${k}">${l} ${n}</span>`)
+    .join("");
+  $("susFilters").querySelectorAll(".chip").forEach((c) => (c.onclick = () => ((susFilter = c.dataset.f), renderSuspects())));
+  let list = susFilter === "all" ? all : all.filter((u) => u.cats[susFilter]);
+  list.sort((a, b) => (susSort === "sev" ? b.score - a.score || b.lastAt - a.lastAt : b.lastAt - a.lastAt));
+  $("susCount").textContent = all.length;
+  if (!list.length) {
+    $("susList").innerHTML = `<div class="empty">${all.length ? "Bu filtrede kimse yok." : "Henüz kimse yakalanmadı. Sohbet temiz 👌"}</div>`;
+    return;
+  }
+  const qt = (settings && settings.defaultTimeout) || 10;
+  $("susList").innerHTML = list
+    .slice(0, 300)
+    .map((u) => {
+      const sev = u.last ? u.last.maxSev : 1;
+      const cats = Object.entries(u.cats).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, n]) => `<span class="fl s${c === "kufur" || c === "tehdit" || c === "kavga" || c === "ozel" ? 3 : c === "caps" || c === "spam" ? 1 : 2}">${CAT_LABEL[c]}${n > 1 ? " ×" + n : ""}</span>`).join("");
+      return `<div class="sus ${selectedKey === u.key ? "sel" : ""} ${fresh.has(u.key) ? "new" : ""}" data-k="${esc(u.key)}">
+        <i class="bar s${sev}"></i>
+        <div style="min-width:0"><div class="top"><span class="nm">${esc(u.name)}</span><span class="x">${u.flagged}×</span>${cats}<span class="ago">${u.lastAt ? ago(u.lastAt) : ""}</span></div>
+        <div class="lm">${u.last ? fmtMsg(u.last.m) : ""}</div></div>
+        <div class="acts"><button class="btn small" data-a="to" title="${qt} dk timeout">⏱ ${qt}dk</button><button class="btn small danger" data-a="ban" title="Kalıcı ban">🔨</button><button class="btn small ghost" data-a="ok" title="Temiz, listeden çıkar">✓</button></div>
+      </div>`;
+    })
+    .join("");
+  $("susList").querySelectorAll(".sus").forEach((el) => {
+    el.onclick = (e) => {
+      const a = e.target.dataset.a;
+      const k = el.dataset.k;
+      if (a === "to") return quickTimeout(k, qt);
+      if (a === "ban") return doBan(k);
+      if (a === "ok") return doDismiss(k);
+      selectedKey = k;
+      $("susList").querySelectorAll(".sus").forEach((x) => x.classList.toggle("sel", x === el));
+    };
+    el.ondblclick = (e) => {
+      if (!e.target.dataset.a) openDrawer(el.dataset.k);
+    };
+  });
+}
+$("susSort").querySelectorAll("button").forEach((b) => (b.onclick = () => {
+  susSort = b.dataset.v;
+  $("susSort").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  renderSuspects();
+}));
+setInterval(() => connected && renderSuspects(), 15000);
+
+// ---------- işlemler ----------
+function nameOf(k) {
+  const u = suspects.get(k);
+  return u ? u.name : (drawerData && drawerData.user && drawerData.user.key === k ? drawerData.user.name : k);
+}
+function reasonFor(k) {
+  const u = suspects.get(k);
+  if (!u) return "Sohbet kuralları";
+  const top = Object.entries(u.cats).sort((a, b) => b[1] - a[1])[0];
+  return top ? CAT_LABEL[top[0]] : "Sohbet kuralları";
+}
+async function quickTimeout(k, minutes) {
+  const r = await api.timeout({ key: k, minutes, reason: reasonFor(k) });
+  if (r.error) return modal("Timeout atılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
+  toast(`⏱ ${nameOf(k)} → ${minutes >= 1440 ? minutes / 1440 + " gün" : minutes >= 60 ? minutes / 60 + " saat" : minutes + " dk"} timeout`, () => doUnban(k, true));
+  if (drawerKey === k) loadDrawer(k, true);
+}
+async function doBan(k) {
+  const reason = await modal(`${nameOf(k)} kalıcı banlansın mı?`, `<div class="muted">Sebep (isteğe bağlı):</div><input value="${esc(reasonFor(k))}">`, [
+    { label: "Vazgeç", value: null, kind: "ghost" },
+    { label: "🔨 Banla", value: "input", kind: "danger" },
+  ]);
+  if (reason === null) return;
+  const r = await api.ban({ key: k, reason });
+  if (r.error) return modal("Ban atılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
+  toast(`🔨 ${nameOf(k)} banlandı`, () => doUnban(k, true));
+  if (drawerKey === k) loadDrawer(k, true);
+}
+async function doUnban(k, silent) {
+  const r = await api.unban({ key: k });
+  if (r.error) return modal("Kaldırılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
+  if (!silent || true) toast(`${nameOf(k)} için ban/timeout kaldırıldı`);
+  if (drawerKey === k) loadDrawer(k, true);
+}
+async function doDismiss(k) {
+  await api.userDismiss(k);
+  const u = suspects.get(k);
+  if (u) u.dismissedAt = Date.now();
+  renderSuspects();
+  if (drawerKey === k) closeDrawer();
+}
+api.onAction(() => {});
+
+// ---------- kullanıcı detayı (çekmece) ----------
+function openDrawer(k) {
+  drawerKey = k;
+  $("drawer").classList.remove("hidden");
+  $("drawerBg").classList.remove("hidden");
+  $("drMsgs").innerHTML = `<div class="empty">Yükleniyor...</div>`;
+  loadDrawer(k);
+}
+function closeDrawer() {
+  drawerKey = null;
+  $("drawer").classList.add("hidden");
+  $("drawerBg").classList.add("hidden");
+}
+$("drClose").onclick = closeDrawer;
+$("drawerBg").onclick = closeDrawer;
+window.addEventListener("keydown", (e) => e.key === "Escape" && closeDrawer());
+let drawerLoading = false;
+async function loadDrawer(k, quiet) {
+  if (drawerLoading && quiet) return;
+  drawerLoading = true;
+  const d = await api.userDetail(k);
+  drawerLoading = false;
+  if (drawerKey !== k) return;
+  if (d.error) return ($("drMsgs").innerHTML = `<div class="empty">${esc(d.error)}</div>`);
+  drawerData = d;
+  const u = d.user, c = d.card || {};
+  avatar($("drAvatar"), u.name, c.avatar);
+  $("drName").textContent = u.name;
+  $("drBadges").textContent = (c.badges || []).join(" · ") || "izleyici";
+  const days = c.createdAt ? Math.floor((Date.now() - Date.parse(c.createdAt)) / 86400000) : null;
+  const fol = c.followingSince ? Math.floor((Date.now() - Date.parse(c.followingSince)) / 86400000) : null;
+  $("drInfo").innerHTML = `
+    <div class="${days != null && days < 7 ? "warn" : ""}"><b>${days == null ? "—" : days < 1 ? "bugün" : days + " gün"}</b><small>hesap yaşı${days != null && days < 7 ? " ⚠ yeni" : ""}</small></div>
+    <div><b>${fol == null ? "takip etmiyor" : fol < 1 ? "bugün" : fol + " gün"}</b><small>takip</small></div>
+    <div><b>${c.subscribedFor ? c.subscribedFor + " ay" : "—"}</b><small>abonelik</small></div>
+    <div class="${c.banned ? "warn" : ""}"><b>${c.banned ? (c.banned.permanent === false || c.banned.expires_at ? "timeout'ta" : "banlı") : "aktif"}</b><small>durum</small></div>`;
+  $("drCats").innerHTML = Object.entries(u.cats).map(([cat, n]) => `<span class="fl s${cat === "caps" || cat === "spam" ? 1 : cat === "hakaret" || cat === "link" || cat === "flood" ? 2 : 3}">${CAT_LABEL[cat]} ×${n}</span>`).join("") + (u.partners.length ? `<span class="muted xs">Kavga ettiği: ${u.partners.map(esc).join(", ")}</span>` : "");
+  const only = $("drOnlyFlag").checked;
+  const msgs = (only ? d.messages.filter((m) => m.flags.length) : d.messages).slice().reverse();
+  $("drMsgCount").textContent = `${d.messages.length} mesaj · ${d.messages.filter((m) => m.flags.length).length} işaretli`;
+  $("drMsgs").innerHTML = msgs.length
+    ? msgs.map((m) => `<div class="msg ${m.maxSev ? "f" + m.maxSev : ""}"><span class="tm">${hhmmss(m.t)}</span><span class="tx">${fmtMsg(m.m)}${m.flags.map((f) => `<span class="fl s${f.sev}" title="${esc(f.match || "")}">${esc(f.label)}</span>`).join("")}</span>${m.flags.length && m.id ? `<button class="btn ghost" data-del="${esc(m.id)}">Sil</button>` : ""}</div>`).join("")
+    : `<div class="empty">Mesaj yok.</div>`;
+  $("drMsgs").querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
+    const r = await api.deleteMsg({ key: k, messageId: b.dataset.del });
+    if (r.error) return modal("Mesaj silinemedi", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
+    b.closest(".msg").classList.add("deleted");
+    toast("Mesaj silindi");
+  }));
+  const L = { timeout: "timeout", ban: "ban", unban: "ban/timeout kaldırma", delete: "mesaj silme" };
+  $("drLog").innerHTML = (d.actions || []).map((a) => `• ${hhmmss(a.at)} — ${esc(a.by)}: ${L[a.type] || a.type}${a.minutes ? ` (${a.minutes} dk)` : ""}${a.reason ? ` · ${esc(a.reason)}` : ""}`).join("<br>");
+}
+$("drOnlyFlag").onchange = () => drawerKey && loadDrawer(drawerKey);
+$("toBtns").querySelectorAll("button").forEach((b) => (b.onclick = () => drawerKey && quickTimeout(drawerKey, Number(b.dataset.min))));
+$("drBan").onclick = () => drawerKey && doBan(drawerKey);
+$("drUnban").onclick = () => drawerKey && doUnban(drawerKey);
+$("drDismiss").onclick = () => drawerKey && doDismiss(drawerKey);
+
+// ---------- ayarlar ----------
+async function fillSettings() {
+  settings = await api.settingsGet();
+  const a = await api.authStatus();
+  $("setAcct").innerHTML = a.loggedIn && a.me ? `✅ Giriş yapıldı: <b>${esc(a.me.name)}</b>` : a.hasClient ? "Giriş yapılmadı." : "Önce aşağıdan Kick uygulama bilgilerini ya da ekip kodunu gir.";
+  $("loginBtn2").classList.toggle("hidden", a.loggedIn);
+  $("loginBtn2").disabled = !a.hasClient;
+  $("logoutBtn").classList.toggle("hidden", !a.loggedIn);
+  $("redirUrl").textContent = a.redirect;
+  $("cidIn").value = a.clientId || "";
+  $("secIn").placeholder = a.hasClient ? "•••••••• (kayıtlı)" : "";
+  $("wordsIn").value = (settings.customWords || []).join("\n");
+  const map = { cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
+  for (const [id, k] of Object.entries(map)) $(id).checked = !!settings[k];
+  $("defTo").value = String(settings.defaultTimeout || 10);
+  $("verTxt").textContent = "v" + (await api.appVersion());
+}
+$("copyRedir").onclick = () => navigator.clipboard.writeText($("redirUrl").textContent).then(() => toast("Kopyalandı"));
+$("saveClient").onclick = async () => {
+  const cid = $("cidIn").value.trim(), sec = $("secIn").value.trim();
+  if (!cid) return ($("clientMsg").textContent = "Client ID gerekli.");
+  await api.authSetClient({ clientId: cid, clientSecret: sec || undefined });
+  $("secIn").value = "";
+  $("clientMsg").textContent = "Kaydedildi ✓";
+  await refreshAuth();
+  fillSettings();
+};
+$("copyCode").onclick = async () => {
+  const c = await api.authExportCode();
+  if (!c) return toast("Önce Client ID ve Secret kaydet");
+  navigator.clipboard.writeText(c).then(() => toast("Ekip kodu kopyalandı — sadece güvendiğin modlara ver"));
+};
+$("applyCode").onclick = async () => {
+  const r = await api.authImportCode($("codeIn").value);
+  if (r.error) return toast(r.error);
+  $("codeIn").value = "";
+  toast("Ekip kodu uygulandı ✓ Şimdi Kick ile giriş yap");
+  await refreshAuth();
+  fillSettings();
+};
+$("loginBtn2").onclick = async () => { await doLogin(); fillSettings(); };
+$("logoutBtn").onclick = async () => { await api.authLogout(); await refreshAuth(); fillSettings(); };
+$("saveDet").onclick = async () => {
+  settings = await api.settingsSave({
+    customWords: $("wordsIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
+    profanity: $("cProfanity").checked, insults: $("cInsults").checked, threats: $("cThreats").checked, fights: $("cFights").checked,
+    spam: $("cSpam").checked, caps: $("cCaps").checked, links: $("cLinks").checked,
+    ignoreMods: $("cIgnoreMods").checked, ignoreSubs: $("cIgnoreSubs").checked, sound: $("cSound").checked,
+    defaultTimeout: Number($("defTo").value) || 10,
+  });
+  $("detMsg").textContent = "Kaydedildi ✓ (yeni mesajlara uygulanır)";
+  setTimeout(() => ($("detMsg").textContent = ""), 2500);
+};
+
+// ---------- güncelleme ----------
+api.onUpdateAvailable((info) => {
+  $("updateText").innerHTML = `Yeni sürüm hazır: <b>v${esc(info.version)}</b>`;
+  $("updateBar").classList.remove("hidden");
+});
+api.onUpdateProgress((f) => ($("updateText").textContent = `Güncelleme indiriliyor... %${Math.round(f * 100)}`));
+$("updateLater").onclick = () => $("updateBar").classList.add("hidden");
+$("updateNow").onclick = async () => {
+  $("updateNow").disabled = true;
+  const r = await api.updateInstall();
+  if (r.error) { $("updateNow").disabled = false; $("updateText").textContent = "Güncellenemedi: " + r.error; }
+  else $("updateText").textContent = "Kuruluyor, uygulama birazdan yeniden açılacak...";
+};
+$("checkUpd").onclick = async () => {
+  $("updMsg").textContent = "Kontrol ediliyor...";
+  const r = await api.updateCheck();
+  $("updMsg").textContent = r.error ? "Kontrol edilemedi: " + r.error : r.available ? `Yeni sürüm var: v${r.version}` : "Güncelsin ✓";
+  if (r.available) { $("updateText").innerHTML = `Yeni sürüm hazır: <b>v${esc(r.version)}</b>`; $("updateBar").classList.remove("hidden"); }
+};
+
+// ---------- başlat ----------
+(async () => {
+  settings = await api.settingsGet();
+  await refreshAuth();
+})();
