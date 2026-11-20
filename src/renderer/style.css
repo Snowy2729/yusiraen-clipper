@@ -279,3 +279,9 @@ textarea { background: #0e0e0e; border: 1px solid var(--line); border-radius: 8p
 .vid-table a { color: var(--text); text-decoration: none; } .vid-table a:hover { color: #ff8a8a; }
 .badge.short { background: #2a0d0f; color: #ff8a8a; }
 .empty-card { max-width: 620px; margin: 50px auto; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 34px; }
+
+.manual { margin-top: 14px; background: #0f0f0f; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.yt-sub { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+.row.wrap { flex-wrap: wrap; }
+.st-left { position: sticky; top: 0; }
+a { color: #ff8a8a; }

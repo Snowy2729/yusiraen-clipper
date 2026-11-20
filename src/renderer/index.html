@@ -175,19 +175,32 @@
           <div class="exp-done hidden" id="stExpDone"><span id="stExpFile" class="muted"></span><button class="btn small" id="stShowFile">Klasörde göster</button></div>
           <div class="yt-box">
             <div class="yt-title">▶ YouTube'a yükle</div>
-            <div id="ytNo" class="muted">YouTube hesabın bağlı değil. <a href="#" id="ytGoSettings">Ayarlar'dan bağla</a>.</div>
-            <div id="ytYes" class="hidden">
+            <div id="ytYes">
               <label class="fld"><span>Başlık</span><input id="ytTitle" maxlength="100" spellcheck="false"></label>
               <div class="chips left" id="ytTitleSug"></div>
               <label class="fld"><span>Açıklama</span><textarea id="ytDesc" rows="5" spellcheck="false"></textarea></label>
               <label class="fld"><span>Etiketler (virgülle)</span><input id="ytTags" spellcheck="false"></label>
-              <div class="row">
-                <select id="ytPrivacy"><option value="private">Gizli</option><option value="unlisted">Liste dışı</option><option value="public">Herkese açık</option></select>
-                <button class="btn primary" id="ytUpload">YouTube'a yükle</button>
+              <div class="manual">
+                <div class="yt-sub">Elle yükle <span class="badge ok">şimdilik önerilen</span></div>
+                <div class="row wrap">
+                  <button class="btn small" id="cpTitle">Başlığı kopyala</button>
+                  <button class="btn small" id="cpDesc">Açıklamayı kopyala</button>
+                  <button class="btn small" id="cpShow">Videoyu klasörde göster</button>
+                  <button class="btn small primary" id="openStudioYt">YouTube Studio'yu aç</button>
+                </div>
+                <div class="muted small-note">Studio'da "Oluştur → Video yükle" de, videoyu sürükle, başlık ve açıklamayı yapıştır.</div>
               </div>
-              <div class="progress hidden" id="ytProg"><div class="bar"><i id="ytBar"></i></div><span id="ytProgText"></span></div>
-              <div class="muted small-note" id="ytNote">Google'ın denetiminden geçene kadar uygulamadan yüklenen videolar <b>gizli</b> kalır. Denetim başvurusu yapılacak.</div>
-              <div id="ytDone"></div>
+              <div class="manual">
+                <div class="yt-sub">Uygulamadan yükle</div>
+                <div id="ytNo" class="muted small-note">YouTube hesabın bağlı değil. <a href="#" id="ytGoSettings">Ayarlar'dan bağla</a>.</div>
+                <div class="row">
+                  <select id="ytPrivacy"><option value="private">Gizli</option><option value="unlisted">Liste dışı</option><option value="public">Herkese açık</option></select>
+                  <button class="btn" id="ytUpload">YouTube'a yükle</button>
+                </div>
+                <div class="progress hidden" id="ytProg"><div class="bar"><i id="ytBar"></i></div><span id="ytProgText"></span></div>
+                <div class="muted small-note" id="ytNote">⚠ Google denetimi tamamlanana kadar uygulamadan yüklenen videolar <b>kalıcı olarak gizli</b> kalır ve sonradan açılamaz. Denetim onaylanınca bu yol tam otomatik olacak.</div>
+                <div id="ytDone"></div>
+              </div>
             </div>
           </div>
         </div>

@@ -532,8 +532,8 @@ $("ytGoSettings").onclick = (e) => {
 async function openShare() {
   const ys = await api.ytStatus();
   $("ytNo").classList.toggle("hidden", ys.connected);
-  $("ytYes").classList.toggle("hidden", !ys.connected);
-  if (!ys.connected) return;
+  $("ytUpload").disabled = !ys.connected;
+  $("ytPrivacy").disabled = !ys.connected;
   const sug = await api.editorSuggest({ sessionId: st.sessionId, rank: st.rank, project: st.proj });
   const p = st.proj;
   if (!p.title) p.title = sug.titles[0] || "";
@@ -553,6 +553,14 @@ async function openShare() {
   $("ytDone").innerHTML = ups.length ? `<div class="muted small-note">Daha önce yüklendi: ${ups.map((u) => `<a href="#" data-url="${esc(u.url)}">${esc(u.url)}</a>`).join(", ")}</div>` : "";
   $("ytDone").querySelectorAll("a").forEach((a) => (a.onclick = (e) => { e.preventDefault(); api.openUrl(a.dataset.url); }));
 }
+$("cpTitle").onclick = () => copy(st.proj.title || "");
+$("cpDesc").onclick = () => { navigator.clipboard.writeText(st.proj.description || "").then(() => toast("Açıklama kopyalandı", 1400)); };
+$("cpShow").onclick = async () => {
+  let file = st.lastExport;
+  if (!file || st.dirty) { toast("Önce son hali ile video oluşturuluyor..."); file = await doExport(); }
+  if (file) api.showItem(file);
+};
+$("openStudioYt").onclick = () => api.openUrl("https://studio.youtube.com");
 $("ytTitle").oninput = (e) => { st.proj.title = e.target.value; saveSoon(); };
 $("ytDesc").oninput = (e) => { st.proj.description = e.target.value; saveSoon(); };
 $("ytTags").oninput = (e) => { st.proj.tags = e.target.value; saveSoon(); };
