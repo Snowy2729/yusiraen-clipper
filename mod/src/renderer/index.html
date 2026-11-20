@@ -16,10 +16,9 @@
   <div class="chan hidden" id="chanBox">
     <div class="avatar sm" id="chanAvatar"></div>
     <div><b id="chanName"></b> <span class="live-dot hidden" id="chanLive">● CANLI</span><div class="muted xs" id="chanSub"></div></div>
-    <span class="role" id="chanRole"></span>
     <button class="btn small ghost" id="leaveBtn">Ayrıl</button>
   </div>
-  <div class="acct" id="acctBox"></div>
+  <div class="acct"></div>
   <img class="logo" src="../../assets/logo.png" alt="">
 </header>
 <div class="update-bar hidden" id="updateBar"><span id="updateText"></span><button class="btn primary small" id="updateNow">Şimdi güncelle</button><button class="btn ghost small" id="updateLater">Sonra</button></div>
@@ -27,16 +26,10 @@
 <main>
   <!-- ============ PANEL ============ -->
   <section class="view active" id="view-panel">
-    <div class="center-card hidden" id="onboard">
-      <img class="big-logo" src="../../assets/logo.png" alt="">
-      <h1>Yusiraen Mod</h1>
-      <p class="muted">Sohbeti canlı tarar; küfür, hakaret, tehdit, kavga, spam ve caps yazanları yakalar.<br>Sadece kanalın <b>yayıncısı</b> ve <b>moderatörleri</b> kullanabilir.</p>
-      <div id="onboardBody"></div>
-    </div>
     <div class="center-card hidden" id="connectCard">
       <img class="big-logo" src="../../assets/logo.png" alt="">
-      <h1>Kanala bağlan</h1>
-      <p class="muted">Moderatörü olduğun kanalın adını yaz.</p>
+      <h1>Yusiraen Mod</h1>
+      <p class="muted">Sohbeti canlı tarar; küfür, hakaret, tehdit, kavga, spam ve caps yazanları yakalar.<br>Kanal adını yazıp bağlan.</p>
       <div class="row"><input id="slugInput" placeholder="ör. rraenee" spellcheck="false"><button class="btn primary big" id="connectBtn">Bağlan</button></div>
       <div class="chips" id="lastChips"></div>
       <div class="status-msg" id="connectMsg"></div>
@@ -69,31 +62,6 @@
   <section class="view" id="view-settings">
     <div class="settings">
       <h2>Ayarlar</h2>
-      <h3>Kick hesabı</h3>
-      <div class="box"><div class="row between"><div id="setAcct" class="muted"></div><div class="row"><button class="btn small" id="loginBtn2">Kick ile giriş yap</button><button class="btn small ghost hidden" id="logoutBtn">Çıkış yap</button></div></div></div>
-
-      <h3>Kick uygulaması <span class="muted xs">(bir kerelik kurulum)</span></h3>
-      <div class="box">
-        <p class="muted small">Moderatör doğrulaması (Kick ile giriş) için bir Kick geliştirici uygulaması gerekir. <b>Yalnızca bir kişinin</b> (ör. sen) oluşturması yeterli; diğer modlara <b>ekip kodunu</b> verirsin.</p>
-        <details class="guide"><summary>Nasıl oluşturulur? (ücretsiz, ~3 dakika)</summary>
-          <ol>
-            <li><b>kick.com</b>'da hesabına gir → sağ üst profil → <b>Ayarlar → Geliştirici</b> (kick.com/settings/developer).</li>
-            <li><b>Create App / Uygulama oluştur</b>. Ad: Yusiraen Mod.</li>
-            <li><b>Redirect URL</b> alanına tam olarak şunu yaz: <code id="redirUrl"></code> <button class="btn small ghost" id="copyRedir">Kopyala</button></li>
-            <li>İzinlerden sadece <b>Read user information</b> (kullanıcı bilgisini okuma) yeterli. Uygulama başka hiçbir şeye erişmez.</li>
-            <li>Oluşan <b>Client ID</b> ve <b>Client Secret</b>'ı aşağıya yapıştır, Kaydet.</li>
-          </ol>
-        </details>
-        <label class="field"><span>Client ID</span><input id="cidIn" spellcheck="false"></label>
-        <label class="field"><span>Client Secret</span><input id="secIn" type="password" spellcheck="false"></label>
-        <div class="row end"><span class="muted xs" id="clientMsg"></span><button class="btn primary" id="saveClient">Kaydet</button></div>
-        <div class="team">
-          <div><b>Ekip kodu</b><div class="muted xs">Diğer modlar Client ID/Secret uğraşmadan bu kodla kurar. Sadece güvendiğin kişilere ver.</div></div>
-          <div class="row"><button class="btn small" id="copyCode">Kodumu kopyala</button></div>
-        </div>
-        <div class="row"><input id="codeIn" placeholder="YMOD-... (sana verilen ekip kodunu yapıştır)" spellcheck="false"><button class="btn small" id="applyCode">Kodu uygula</button></div>
-      </div>
-
       <h3>Algılama</h3>
       <div class="box">
         <label class="field"><span>Özel kelimeler <span class="muted xs">(her satıra bir kelime ya da ifade; bunlara ekstra dikkat edilir, "yüksek" önemde işaretlenir)</span></span>

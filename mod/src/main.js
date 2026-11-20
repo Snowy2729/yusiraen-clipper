@@ -5,7 +5,6 @@ const fs = require("fs");
 const kick = require("./kick");
 const { Recorder } = require("./recorder");
 const { Detector } = require("./detector");
-const { KickAuth } = require("./kickauth");
 const updater = require("./updater");
 
 app.setAppUserModelId("com.yusiraen.mod");
@@ -13,11 +12,10 @@ if (process.env.MOD_DATA) app.setPath("userData", process.env.MOD_DATA);
 if (!app.requestSingleInstanceLock()) app.quit();
 
 let win = null;
-let auth = null;
 let settings = null;
 let settingsPath = null;
 const detector = new Detector();
-let live = null; // { slug, info, recorder, me, role }
+let live = null; // { slug, info, recorder }
 let outQueue = [];
 let flushTimer = null;
 
@@ -82,7 +80,6 @@ app.whenReady().then(() => {
   settingsPath = path.join(app.getPath("userData"), "ayarlar.json");
   settings = loadSettings();
   detector.setOptions(settings);
-  auth = new KickAuth(app.getPath("userData"));
   createWindow();
   setTimeout(autoCheck, 8000);
   setInterval(autoCheck, 6 * 3600 * 1000);
@@ -95,33 +92,6 @@ ipcMain.handle("settings:get", () => settings);
 ipcMain.handle("settings:save", (_, p) => saveSettings(p));
 ipcMain.handle("app:version", () => app.getVersion());
 ipcMain.handle("shell:openUrl", (_, u) => shell.openExternal(u));
-
-// ---------------- Kick hesabı ----------------
-ipcMain.handle("auth:status", () => auth.status());
-ipcMain.handle("auth:setClient", (_, { clientId, clientSecret }) => {
-  auth.setClient(clientId, clientSecret);
-  return auth.status();
-});
-ipcMain.handle("auth:exportCode", () => auth.exportCode());
-ipcMain.handle("auth:importCode", (_, code) => {
-  try {
-    auth.importCode(code);
-    return auth.status();
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-ipcMain.handle("auth:login", async () => {
-  try {
-    return await auth.login();
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-ipcMain.handle("auth:logout", async () => {
-  disconnect();
-  return auth.logout();
-});
 
 // ---------------- Kanala bağlan ----------------
 function summary(u) {
@@ -160,8 +130,6 @@ function disconnect() {
 ipcMain.handle("chat:connect", async (_, slugIn) => {
   const slug = String(slugIn || "").trim().toLowerCase().replace(/^https?:\/\/(www\.)?kick\.com\//, "").replace(/[/?#].*$/, "");
   if (!slug) return { error: "Kanal adı yaz." };
-  const st = auth.status();
-  if (!st.loggedIn) return { error: "Önce Kick hesabınla giriş yap." };
   let info;
   try {
     info = await kick.getChannel(slug);
@@ -169,24 +137,12 @@ ipcMain.handle("chat:connect", async (_, slugIn) => {
     return { error: "Kick'e ulaşılamadı: " + e.message };
   }
   if (info.notFound) return { error: `"${slug}" adında bir Kick kanalı bulunamadı.` };
-  let me = st.me;
-  try {
-    me = await auth.fetchMe();
-  } catch (e) {
-    return { error: e.message };
-  }
-  // Erişim kontrolü: sadece bu kanalın yayıncısı ve moderatörleri
-  const card = await kick.userCard(info.slug, me.name);
-  if (card.error) return { error: "Moderatörlük kontrol edilemedi: " + card.error };
-  const isOwner = card.isOwner || (info.userId && String(info.userId) === String(me.id));
-  if (!isOwner && !card.isMod) return { error: `${me.name}, ${info.username} kanalında moderatör değilsin. Bu panel sadece kanalın yayıncısı ve moderatörleri içindir.`, denied: true };
-
   disconnect();
   detector.reset();
   const pk = await kick.resolvePusher({ key: settings.pusherKey, cluster: settings.pusherCluster });
   if (pk.key !== settings.pusherKey) saveSettings({ pusherKey: pk.key, pusherCluster: pk.cluster });
   const rec = new Recorder({ chatroomId: info.chatroomId, channelId: info.channelId, pusherKey: pk.key, pusherCluster: pk.cluster });
-  live = { slug: info.slug, info, recorder: rec, me, role: isOwner ? "Yayıncı" : "Moderatör", status: "connecting" };
+  live = { slug: info.slug, info, recorder: rec, status: "connecting" };
   rec.on("status", (s) => {
     if (live && live.recorder === rec) {
       live.status = s;
@@ -211,7 +167,7 @@ ipcMain.handle("chat:connect", async (_, slugIn) => {
   rec.start();
   flushTimer = setInterval(flushOut, 200);
   saveSettings({ lastChannel: info.slug });
-  return { ok: true, channel: { slug: info.slug, name: info.username, avatar: info.avatar, live: info.live, title: info.livestream && info.livestream.title, viewers: info.livestream && info.livestream.viewers }, role: live.role, me };
+  return { ok: true, channel: { slug: info.slug, name: info.username, avatar: info.avatar, live: info.live, title: info.livestream && info.livestream.title, viewers: info.livestream && info.livestream.viewers } };
 });
 ipcMain.handle("chat:disconnect", () => {
   disconnect();

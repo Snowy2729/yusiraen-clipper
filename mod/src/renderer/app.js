@@ -1,7 +1,6 @@
 const $ = (id) => document.getElementById(id);
 let settings = null;
-let auth = null;
-let connected = null; // {channel, role, me}
+let connected = null; // {channel}
 const suspects = new Map(); // key -> özet
 let susFilter = "all";
 let susSort = "new";
@@ -90,40 +89,12 @@ function showView(v) {
   if (v === "settings") fillSettings();
 }
 
-// ---------- hesap / giriş ----------
-async function refreshAuth() {
-  auth = await api.authStatus();
-  const box = $("acctBox");
-  if (auth.loggedIn && auth.me) {
-    box.innerHTML = `<div class="avatar sm" id="meAv"></div><b>${esc(auth.me.name)}</b>`;
-    avatar($("meAv"), auth.me.name, auth.me.avatar);
-  } else box.innerHTML = auth.hasClient ? `<button class="btn small primary" id="loginTop">Kick ile giriş yap</button>` : "";
-  const lt = $("loginTop");
-  if (lt) lt.onclick = doLogin;
-  renderPanelState();
-}
-async function doLogin() {
-  toast("Tarayıcıda Kick girişi açıldı, izin ver...");
-  const r = await api.authLogin();
-  if (r.error) return modal("Giriş yapılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
-  toast(`Hoş geldin ${r.me ? r.me.name : ""} ✓`);
-  refreshAuth();
-}
+// ---------- panel durumu ----------
 function renderPanelState() {
-  const ready = auth && auth.loggedIn;
-  $("onboard").classList.toggle("hidden", ready || !!connected);
-  $("connectCard").classList.toggle("hidden", !ready || !!connected);
+  $("connectCard").classList.toggle("hidden", !!connected);
   $("board").classList.toggle("hidden", !connected);
   $("chanBox").classList.toggle("hidden", !connected);
-  if (!ready) {
-    $("onboardBody").innerHTML = auth && auth.hasClient
-      ? `<button class="btn primary big" id="obLogin">Kick ile giriş yap</button>`
-      : `<p>Başlamak için Ayarlar'dan <b>Kick uygulama bilgilerini</b> gir ya da sana verilen <b>ekip kodunu</b> yapıştır.</p><button class="btn primary" id="obSet">Ayarlara git</button>`;
-    const a = $("obLogin"), b = $("obSet");
-    if (a) a.onclick = doLogin;
-    if (b) b.onclick = () => showView("settings");
-  }
-  if (ready && !connected && settings) {
+  if (!connected && settings) {
     $("lastChips").innerHTML = settings.lastChannel ? `<span class="chip" data-c="${esc(settings.lastChannel)}">${esc(settings.lastChannel)}</span>` : "";
     $("lastChips").querySelectorAll(".chip").forEach((c) => (c.onclick = () => (($("slugInput").value = c.dataset.c), doConnect())));
   }
@@ -135,12 +106,12 @@ async function doConnect() {
   if (!slug) return;
   $("connectBtn").disabled = true;
   $("connectMsg").className = "status-msg info";
-  $("connectMsg").textContent = "Bağlanılıyor, moderatörlük kontrol ediliyor...";
+  $("connectMsg").textContent = "Bağlanılıyor...";
   const r = await api.connect(slug);
   $("connectBtn").disabled = false;
   if (r.error) {
     $("connectMsg").className = "status-msg";
-    $("connectMsg").textContent = (r.denied ? "⛔ " : "") + r.error;
+    $("connectMsg").textContent = r.error;
     return;
   }
   $("connectMsg").textContent = "";
@@ -152,7 +123,6 @@ async function doConnect() {
   $("chanName").textContent = r.channel.name;
   $("chanLive").classList.toggle("hidden", !r.channel.live);
   $("chanSub").textContent = r.channel.live ? `${(r.channel.viewers || 0).toLocaleString("tr-TR")} izleyici` : "yayında değil";
-  $("chanRole").textContent = r.role;
   renderSuspects();
   renderPanelState();
 }
@@ -342,44 +312,11 @@ $("drDismiss").onclick = () => drawerKey && doDismiss(drawerKey);
 // ---------- ayarlar ----------
 async function fillSettings() {
   settings = await api.settingsGet();
-  const a = await api.authStatus();
-  $("setAcct").innerHTML = a.loggedIn && a.me ? `✅ Giriş yapıldı: <b>${esc(a.me.name)}</b>` : a.hasClient ? "Giriş yapılmadı." : "Önce aşağıdan Kick uygulama bilgilerini ya da ekip kodunu gir.";
-  $("loginBtn2").classList.toggle("hidden", a.loggedIn);
-  $("loginBtn2").disabled = !a.hasClient;
-  $("logoutBtn").classList.toggle("hidden", !a.loggedIn);
-  $("redirUrl").textContent = a.redirect;
-  $("cidIn").value = a.clientId || "";
-  $("secIn").placeholder = a.hasClient ? "•••••••• (kayıtlı)" : "";
   $("wordsIn").value = (settings.customWords || []).join("\n");
   const map = { cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
   for (const [id, k] of Object.entries(map)) $(id).checked = !!settings[k];
   $("verTxt").textContent = "v" + (await api.appVersion());
 }
-$("copyRedir").onclick = () => navigator.clipboard.writeText($("redirUrl").textContent).then(() => toast("Kopyalandı"));
-$("saveClient").onclick = async () => {
-  const cid = $("cidIn").value.trim(), sec = $("secIn").value.trim();
-  if (!cid) return ($("clientMsg").textContent = "Client ID gerekli.");
-  await api.authSetClient({ clientId: cid, clientSecret: sec || undefined });
-  $("secIn").value = "";
-  $("clientMsg").textContent = "Kaydedildi ✓";
-  await refreshAuth();
-  fillSettings();
-};
-$("copyCode").onclick = async () => {
-  const c = await api.authExportCode();
-  if (!c) return toast("Önce Client ID ve Secret kaydet");
-  navigator.clipboard.writeText(c).then(() => toast("Ekip kodu kopyalandı — sadece güvendiğin modlara ver"));
-};
-$("applyCode").onclick = async () => {
-  const r = await api.authImportCode($("codeIn").value);
-  if (r.error) return toast(r.error);
-  $("codeIn").value = "";
-  toast("Ekip kodu uygulandı ✓ Şimdi Kick ile giriş yap");
-  await refreshAuth();
-  fillSettings();
-};
-$("loginBtn2").onclick = async () => { await doLogin(); fillSettings(); };
-$("logoutBtn").onclick = async () => { await api.authLogout(); await refreshAuth(); fillSettings(); };
 $("saveDet").onclick = async () => {
   settings = await api.settingsSave({
     customWords: $("wordsIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
@@ -414,5 +351,5 @@ $("checkUpd").onclick = async () => {
 // ---------- başlat ----------
 (async () => {
   settings = await api.settingsGet();
-  await refreshAuth();
+  renderPanelState();
 })();

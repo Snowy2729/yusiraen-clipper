@@ -1,0 +1,2 @@
+- **Giriş gerekmiyor:** Kick hesabı, geliştirici uygulaması ya da ekip kodu yok. Kanal adını yaz, bağlan
+- Uygulama sadece tespit yapar; kime verirsen o kullanır
