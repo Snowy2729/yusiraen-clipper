@@ -6,6 +6,7 @@ const kick = require("./kick");
 const { Recorder } = require("./recorder");
 const { Detector } = require("./detector");
 const updater = require("./updater");
+const { SessionStore } = require("./sessions");
 
 app.setAppUserModelId("com.yusiraen.mod");
 if (process.env.MOD_DATA) app.setPath("userData", process.env.MOD_DATA);
@@ -18,6 +19,11 @@ const detector = new Detector();
 let live = null; // { slug, info, recorder }
 let outQueue = [];
 let flushTimer = null;
+let store = null; // kayıtlı mesajlar
+let metaTimer = null;
+function suspectList() {
+  return [...detector.users.values()].filter((u) => u.flagged > 0).map(summary);
+}
 
 const DEFAULTS = {
   lastChannel: "",
@@ -26,6 +32,7 @@ const DEFAULTS = {
   insults: true,
   threats: true,
   spam: true,
+  pollution: true,
   caps: true,
   links: true,
   fights: true,
@@ -82,12 +89,19 @@ app.whenReady().then(() => {
   settingsPath = path.join(app.getPath("userData"), "ayarlar.json");
   settings = loadSettings();
   detector.setOptions(settings);
+  store = new SessionStore(path.join(app.getPath("userData"), "kayitlar"));
   createWindow();
   setTimeout(autoCheck, 8000);
   setInterval(autoCheck, 6 * 3600 * 1000);
 });
 app.on("window-all-closed", () => app.quit());
-app.on("before-quit", () => live && live.recorder.stop());
+app.on("before-quit", () => {
+  if (live) {
+    flushOut();
+    live.recorder.stop();
+    if (store) store.end(suspectList());
+  }
+});
 
 // ---------------- Ayarlar ----------------
 ipcMain.handle("settings:get", () => settings);
@@ -117,7 +131,13 @@ function flushOut() {
   const batch = outQueue.splice(0);
   const users = new Map();
   for (const b of batch) for (const u of b.users) users.set(u.key, u);
-  send("chat:batch", { messages: batch.map((b) => b.msg), users: [...users.values()].map(summary), relabels: batch.map((b) => b.relabel).filter(Boolean) });
+  const relabels = batch.flatMap((b) => b.relabels || []);
+  send("chat:batch", { messages: batch.map((b) => b.msg), users: [...users.values()].map(summary), relabels });
+  if (store) {
+    store.add(batch.map((b) => b.msg));
+    for (const r of relabels) store.relabel(r);
+    store.flush();
+  }
 }
 
 // Yayın durumu: bağlantı yayın açık ya da kapalıyken sürer; sadece etiket değişir.
@@ -131,6 +151,7 @@ function setLive(on, extra = {}) {
   live.info.live = on;
   if (on) live.info.livestream = { ...(live.info.livestream || {}), ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v != null)) };
   else live.info.livestream = null;
+  if (was !== on && store) store.event(on ? "live" : "offline", on ? { title: live.info.livestream && live.info.livestream.title } : {});
   send("chat:live", { ...liveInfo(), changed: was !== on });
 }
 async function refreshLive(rec) {
@@ -147,11 +168,15 @@ function disconnect() {
   if (!live) return;
   clearInterval(liveTimer);
   liveTimer = null;
+  clearInterval(metaTimer);
+  metaTimer = null;
+  flushOut();
+  const saved = store ? store.end(suspectList()) : null;
   live.recorder.stop();
   live = null;
   clearInterval(flushTimer);
   flushTimer = null;
-  send("chat:disconnected", {});
+  send("chat:disconnected", { saved });
 }
 
 ipcMain.handle("chat:connect", async (_, slugIn) => {
@@ -183,9 +208,9 @@ ipcMain.handle("chat:connect", async (_, slugIn) => {
     setTimeout(() => live && live.recorder === rec && rec.start(), 2000);
   });
   rec.on("message", (m) => {
-    const { entry, user, touched, relabel } = detector.analyze(m);
+    const { entry, user, touched, relabels } = detector.analyze(m);
     const msg = { id: m.id, t: entry.t, u: m.u, key: user.key, uid: m.uid, color: m.color, badges: m.badges, m: m.m, flags: entry.flags, maxSev: entry.maxSev };
-    outQueue.push({ msg, users: [user, touched].filter((x) => x && x.flagged), relabel });
+    outQueue.push({ msg, users: [user, touched].filter((x) => x && x.flagged), relabels });
     if (entry.maxSev >= 3 && !win.isFocused() && Notification.isSupported()) {
       new Notification({ title: `Yusiraen Mod — ${entry.flags[0].label}`, body: `${m.u}: ${m.m.slice(0, 120)}` }).show();
     }
@@ -198,6 +223,9 @@ ipcMain.handle("chat:connect", async (_, slugIn) => {
   });
   rec.on("streamEnded", () => live && live.recorder === rec && setLive(false));
   rec.start();
+  if (store) store.start({ slug: info.slug, name: info.username, avatar: info.avatar, live: info.live, title: info.livestream && info.livestream.title });
+  clearInterval(metaTimer);
+  metaTimer = setInterval(() => store && store.saveMeta(suspectList()), 15000);
   clearInterval(liveTimer);
   liveTimer = setInterval(() => refreshLive(rec), 2 * 60 * 1000);
   flushTimer = setInterval(flushOut, 200);
@@ -217,6 +245,18 @@ ipcMain.handle("user:detail", async (_, key) => {
   if (card && card.id && !u.id) u.id = card.id;
   return { user: summary(u), messages: u.msgs.map((x) => ({ id: x.id, t: x.t, m: x.m, flags: x.flags, maxSev: x.maxSev })), card };
 });
+// ---------------- Kayıtlı mesajlar ----------------
+ipcMain.handle("sessions:list", () => {
+  if (store && store.id) store.saveMeta(suspectList());
+  return store ? store.list() : [];
+});
+ipcMain.handle("sessions:open", (_, id) => {
+  if (store && store.id === id) store.saveMeta(suspectList());
+  return store ? store.open(String(id)) : { error: "Kayıt yok." };
+});
+ipcMain.handle("sessions:delete", (_, id) => (store ? store.remove(String(id)) : { error: "Kayıt yok." }));
+ipcMain.handle("sessions:folder", () => store && shell.openPath(store.dir));
+
 ipcMain.handle("user:dismiss", (_, key) => {
   const u = detector.users.get(String(key).toLowerCase());
   if (u) u.dismissedAt = Date.now();

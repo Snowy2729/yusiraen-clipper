@@ -157,3 +157,27 @@ main { flex: 1; overflow: hidden; position: relative; }
 ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: #262626; border-radius: 5px; } ::-webkit-scrollbar-track { background: transparent; }
 .why { color: #ff8a8c; font-size: 12px; font-weight: 700; margin-left: 6px; }
 #chanSub { max-width: 340px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Kayıtlı mesajlar ---- */
+#view-saved { height: 100%; }
+.saved-list { max-width: 920px; margin: 0 auto; padding: 24px 28px 50px; height: 100%; overflow-y: auto; }
+.saved-list h2 { margin: 0; }
+.sv-group { margin-top: 18px; }
+.sv-group > h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 8px; }
+.sv-item { display: flex; align-items: center; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; cursor: pointer; }
+.sv-item:hover { border-color: var(--red); background: var(--panel2); }
+.sv-item .sv-main { flex: 1; min-width: 0; }
+.sv-item .sv-date { font-weight: 600; }
+.sv-item .sv-title { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-item .sv-nums { text-align: right; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.sv-item .sv-nums b { color: var(--text); }
+.sv-item .sv-nums .red { color: #ff8a8a; }
+.tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; letter-spacing: .3px; }
+.tag.live { color: #ff6b6b; background: #2a0d0f; }
+.tag.off { color: #b5b5b5; background: #1f1f1f; border: 1px solid #333; }
+.tag.now { color: #9fe39f; background: #10240f; }
+.saved-tools { padding: 8px 12px; gap: 10px; border-bottom: 1px solid var(--line); align-items: center; }
+.saved-tools input { flex: 1; padding: 7px 10px; }
+.sysline { text-align: center; color: var(--muted); font-size: 12px; margin: 8px 0; }
+.sysline span { background: var(--panel2); border: 1px solid var(--line); border-radius: 20px; padding: 2px 10px; }
+.more { display: block; margin: 8px auto; }

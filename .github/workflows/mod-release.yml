@@ -46,6 +46,11 @@ jobs:
         if: steps.ver.outputs.skip == 'false'
         run: npm ci
 
+      # Algılayıcı Windows'ta da doğru çalışıyor mu (sözlük yükleniyor mu)? Geçmezse sürüm yayınlanmaz.
+      - name: Algılayıcı testi
+        if: steps.ver.outputs.skip == 'false'
+        run: node tools/test-detector.js
+
       - name: Uygulamayı paketle
         if: steps.ver.outputs.skip == 'false'
         run: npx electron-builder --win dir --x64 --publish never

@@ -64,15 +64,33 @@ function dict() {
   DICT = new Set();
   try {
     const txt = fs.readFileSync(path.join(__dirname, "..", "assets", "sozluk.txt"), "utf8");
-    for (const w of txt.split("\n")) if (w) DICT.add(w);
+    for (const line of txt.split(/\r?\n/)) { const w = line.trim(); if (w) DICT.add(w); }
   } catch (_) {}
+  DICT_OK = DICT.size > 50000;
   for (const w of L.CHAT_WORDS) DICT.add(collapse(fold(w)));
   return DICT;
 }
+// Sözlük yüklenemezse tahmine dayalı tespitler (harf değiştirme, kelime içi kök) kapanır; yoksa yanlış alarm yağar
+let DICT_OK = false;
+function dictSize() {
+  return dict().size;
+}
 // Kelime sözlükte var mı, ya da sözlükteki bir kelime + Türkçe ek mi? (geliyorsunuz, kahveler, yaprakları)
+// Zarf-fiil: "toplayarak", "koyarak", "bilerek" (ünlüyle biten köke -yarak, ünsüzle bitene -arak gelir;
+// bu yüzden "dal+yarak" bir zarf-fiil değildir)
+const GERUND = [["yarak", true], ["yerek", true], ["arak", false], ["erek", false]];
+function isGerund(t, D) {
+  for (const [suf, needVowel] of GERUND) {
+    if (!t.endsWith(suf)) continue;
+    const stem = t.slice(0, -suf.length);
+    if (stem.length >= 2 && VOWELS.has(stem[stem.length - 1]) === needVowel && (D.has(stem + "mak") || D.has(stem + "mek"))) return true;
+  }
+  return false;
+}
 function explained(t) {
   const D = dict();
   if (D.has(t)) return true;
+  if (isGerund(t, D)) return true;
   for (let k = Math.min(t.length - 1, 16); k >= 4; k--) {
     if (D.has(t.slice(0, k))) {
       const rest = t.slice(k);
@@ -87,6 +105,69 @@ function isGibberish(foldedTok) {
   if (t.length < 7) return false;
   if (explained(collapse(t))) return false;
   return vowelRatio(t) < 0.3 || maxConsonantRun(t) >= 4;
+}
+
+// ---------- Kelime içindeki kısa kökler: oç, piç, sik ----------
+// "poç", "bapiç", "kfakgjaoçaokfd", "agşladgkpiçadgş", "ksldsikdl" → şüpheli;
+// "koç", "koçum", "kerpiç", "eksik", "klasik", "bisiklet" (ve yazım hataları) → masum
+const LEET_RAW = { 0: "o", 1: "i", 3: "e", 4: "a", "@": "a", $: "s" };
+function rawLetters(rt) {
+  let w = String(rt).toLocaleLowerCase("tr-TR").replace(/i̇/g, "i");
+  if (/\p{L}/u.test(w)) w = w.replace(/[0134@$]/g, (c) => LEET_RAW[c]);
+  return w.replace(/[^\p{L}]/gu, "").replace(/(\p{L})\1+/gu, "$1");
+}
+function suffixLike(rest) {
+  return rest.length === 0 || (rest.length <= 14 && vowelRatio(rest) >= 0.25 && maxConsonantRun(rest) <= 2);
+}
+// Tek harf farkla (eksik/fazla/değişik/yer değiştirmiş) sözlükte bir kelime var mı? (bisikelt → bisiklet, seviyoçuz → seviyoruz)
+const ABC = "abcdefghijklmnoprstuvyz";
+function typoOfReal(f) {
+  const D = dict();
+  const ok = (v) => v.length >= 4 && D.has(v);
+  for (let i = 0; i <= f.length; i++) {
+    if (i < f.length && ok(f.slice(0, i) + f.slice(i + 1))) return true;
+    if (i < f.length - 1 && ok(f.slice(0, i) + f[i + 1] + f[i] + f.slice(i + 2))) return true;
+    for (const c of ABC) {
+      if (ok(f.slice(0, i) + c + f.slice(i))) return true;
+      if (i < f.length && c !== f[i] && ok(f.slice(0, i) + c + f.slice(i + 1))) return true;
+    }
+  }
+  return false;
+}
+// Kelime sözlükle açıklanıyor VE kök sözlükteki kısmın içinde mi? ("eksikler" → eksik+ler: evet;
+// "naberoç" → naber+oç, "selamsik" → selam+sik: kök ekin içinde kalıyor, açıklanmış sayılmaz)
+function coveredByWord(f, root) {
+  const D = dict();
+  if (D.has(f) || isGerund(f, D)) return true;
+  const ends = [];
+  for (let i = f.indexOf(root); i >= 0; i = f.indexOf(root, i + 1)) ends.push(i + root.length);
+  for (let k = Math.min(f.length - 1, 16); k >= 4; k--) {
+    if (D.has(f.slice(0, k))) return suffixLike(f.slice(k)) && f.length - k <= 10 && ends.every((e) => e <= k);
+  }
+  return false;
+}
+function shortRootHit(rt) {
+  const w = rawLetters(rt);
+  const root = L.SHORT_ROOTS.find((r) => w.includes(r));
+  if (!root) return null;
+  const f = collapse(fold(w));
+  // kökle başlayan kelimeler (piçler, oçlar, sikko) her zaman şüpheli
+  const atStart = w.startsWith(root);
+  if (root === "sik") {
+    // ascii yazılmış masum kelimeler de olabilir (sikinti = sıkıntı, sikayet = şikayet): sözlüğe bak
+    if (coveredByWord(f, "sik")) return null;
+  } else {
+    // oç / piç: ç harfi ayırt edici; listedeki gerçek kelimelerle (ve ekleriyle) başlıyorsa masum
+    if (L.C_INNOCENT.some((b) => w.startsWith(b) && suffixLike(fold(w.slice(b.length))))) return null;
+    // c yerine ç basılmış yazım hatası: "çoçuk" = çocuk
+    if (!atStart && f.length >= 5 && coveredByWord(f, fold(root))) return null;
+  }
+  // gerçek bir kelimenin sonuna eklenmiş kök bilinçlidir: "kahvesik", "abisik", "naberoç"
+  const rf = fold(root);
+  if (f.endsWith(rf) && f.length - rf.length >= 2 && explained(f.slice(0, -rf.length))) return root;
+  // tek harflik yazım hatası: "seviyoçuz" (seviyoruz), "elektrsik" (elektrik), "bisikelt" (bisiklet)
+  if (!atStart && f.length >= 6 && typoOfReal(f)) return null;
+  return root;
 }
 
 // ---------- Harf değiştirme: ağırlıklı benzerlik ----------
@@ -134,12 +215,14 @@ const SEV = { 1: "düşük", 2: "orta", 3: "yüksek" };
 const CATS = {
   kufur: "Küfür",
   gizli: "Gizli küfür",
+  supheli: "Şüpheli kelime",
   akrostis: "Akrostiş",
   mustehcen: "+18",
   hakaret: "Hakaret",
   tehdit: "Tehdit",
   kavga: "Kavga",
   spam: "Spam",
+  kirlilik: "Sohbet kirliliği",
   flood: "Flood",
   caps: "Caps",
   link: "Link",
@@ -261,6 +344,11 @@ function scanProfanity(raw) {
     if (t === "got" && !/göt/.test(rawLower)) continue;
     if (isProfaneWord(t)) prof.push(t);
     else if (isAdultWord(t)) add("mustehcen", 2, t);
+    else if (DICT_OK && t.length >= 4) {
+      // kelimeye yapıştırılmış amk / mk / aq: "onelamk", "harbiaq", "naberamk", "amkdslk"
+      const tail = ["amk", "amq", "mk", "aq"].find((x) => t.endsWith(x)) || (t.startsWith("amk") ? "amk" : null);
+      if (tail && !coveredByWord(t, tail)) prof.push(`${t} → ${tail}`);
+    }
   }
   if (prof.length) add("kufur", 2, prof.slice(0, 3).join(", "));
 
@@ -269,8 +357,20 @@ function scanProfanity(raw) {
   for (const rt of rawToks) {
     const folded = fold(rt);
     const letters = collapse(leet(folded.replace(/[^a-z0-9@$€|*]/g, "")));
-    if (letters.length < 4 || found.has(letters)) continue;
+    if (!letters || found.has(letters)) continue;
     if (isProfaneWord(letters) || isAdultWord(letters)) continue; // 1. adımda yakalandı
+    const tryShort = () => {
+      if (!DICT_OK) return;
+      const r = shortRootHit(rt);
+      if (r) {
+        add("supheli", 2, `${rt} → ${r}`);
+        found.add(letters);
+      }
+    };
+    if (letters.length < 4) {
+      tryShort();
+      continue;
+    }
     const gibber = isGibberish(folded);
     if (gibber) gib.add(rt);
     const known = explained(letters);
@@ -287,7 +387,7 @@ function scanProfanity(raw) {
     }
     if (found.has(letters)) continue;
     // b) güçlü kök kelimenin içinde (sözlükte olmayan kelimelerde)
-    if (!known && letters.length >= 6) {
+    if (DICT_OK && !known && letters.length >= 6) {
       const r = L.STRONG_SUB.find((p) => letters.includes(p) && letters !== p);
       if (r) {
         add(r.startsWith("porn") ? "mustehcen" : "gizli", 3, `${rt} → ${r}`);
@@ -305,7 +405,7 @@ function scanProfanity(raw) {
       }
     }
     // d) harf değiştirme (purna, sipim, orolpu) — sadece gerçek kelime olmayanlarda
-    if (!known && !gibber && letters.length >= 4 && letters.length <= 14 && /^[a-z]+$/.test(letters)) {
+    if (DICT_OK && !known && !gibber && letters.length >= 4 && letters.length <= 14 && /^[a-z]+$/.test(letters)) {
       let best = null;
       for (const [root, cat] of L.FUZZY) {
         const d = fuzzyMatch(letters, root);
@@ -318,6 +418,8 @@ function scanProfanity(raw) {
         found.add(letters);
       }
     }
+    // e) kısa kökler kelimenin içinde (oç, piç, sik)
+    if (!found.has(letters)) tryShort();
   }
 
   // 3) ana/bacı küfrü (harf değiştirilmiş halleri dahil): "An@nı sipim"
@@ -360,7 +462,7 @@ class Detector {
   }
 
   setOptions(o) {
-    this.opt = { profanity: true, insults: true, threats: true, spam: true, caps: true, links: true, fights: true, hidden: true, acrostic: true, ignoreMods: true, ignoreSubs: false, customWords: [], ...this.opt, ...o };
+    this.opt = { profanity: true, insults: true, threats: true, spam: true, caps: true, links: true, fights: true, hidden: true, acrostic: true, ignoreMods: true, ignoreSubs: false, pollution: true, customWords: [], ...this.opt, ...o };
     this.custom = (this.opt.customWords || [])
       .map((w) => String(w).trim())
       .filter((w) => w.length >= 2)
@@ -395,7 +497,7 @@ class Detector {
     const flags = [];
     const add = (cat, sev, match) => flags.push({ cat, label: CATS[cat], sev, match });
     const skip = (isMod && this.opt.ignoreMods) || (isSub && this.opt.ignoreSubs);
-    let relabel = null;
+    const relabels = [];
     const { tokens, flat } = normalize(raw);
     let gib = new Set();
 
@@ -413,7 +515,7 @@ class Detector {
         const sc = scanProfanity(raw);
         gib = sc.gib;
         for (const h of sc.hits) {
-          if ((h.cat === "gizli" || h.cat === "mustehcen") && this.opt.hidden === false) continue;
+          if ((h.cat === "gizli" || h.cat === "mustehcen" || h.cat === "supheli") && this.opt.hidden === false) continue;
           add(h.cat, h.cat === "kufur" && directed ? 3 : h.sev, h.match);
         }
       }
@@ -443,7 +545,8 @@ class Detector {
             if (strong || weak) {
               const shown = win.map((a) => a.ch.toLocaleUpperCase("tr-TR")).join("");
               add("akrostis", strong ? 3 : 2, `${shown} (${win.length} mesajın ilk harfi)`);
-              relabel = { ids: win.slice(0, -1).map((a) => a.id).filter(Boolean), flag: { cat: "akrostis", label: CATS.akrostis, sev: strong ? 3 : 2, match: shown } };
+              const relabel = { ids: win.slice(0, -1).map((a) => a.id).filter(Boolean), flag: { cat: "akrostis", label: CATS.akrostis, sev: strong ? 3 : 2, match: shown } };
+              relabels.push(relabel);
               for (const e of u.msgs) if (relabel.ids.includes(e.id) && !e.flags.some((f) => f.cat === "akrostis")) { e.flags.push(relabel.flag); e.maxSev = Math.max(e.maxSev, relabel.flag.sev); }
               u.acro = [];
               break;
@@ -466,14 +569,45 @@ class Detector {
 
       // spam / flood / caps
       const recent = u.msgs.filter((x) => now - x.t < 60000);
+      const st = stems(tokens);
       if (this.opt.spam) {
+        // spam: aynı ya da çok benzer mesajı tekrar tekrar yazmak
         const normText = tokens.join(" ");
-        const same = normText.length >= 3 ? recent.filter((x) => x.norm === normText).length : 0;
-        const inner = /(.)\1{14,}/.test(raw) || hasWordRepeat(tokens, 6);
-        if (same >= 2) add("spam", same >= 4 ? 2 : 1, `aynı mesaj ${same + 1}. kez`);
-        else if (inner) add("spam", 1, "tekrar eden karakter/kelime");
+        const prevSame = normText.length >= 3 ? u.msgs.filter((x) => now - x.t < 180000 && x.norm === normText) : [];
+        const prevNear = u.msgs.filter((x) => now - x.t < 180000 && x.norm !== normText && x.st && similar(st, x.st));
+        const reps = prevSame.length + prevNear.length;
+        if (reps >= 2) {
+          const sev = reps >= 4 ? 2 : 1;
+          add("spam", sev, `${prevNear.length ? "benzer" : "aynı"} mesaj ${reps + 1}. kez`);
+          // önceki tekrarları da geriye dönük işaretle (hepsi görünsün)
+          const flag = { cat: "spam", label: CATS.spam, sev, match: "tekrar eden mesaj" };
+          const ids = [];
+          for (const e of [...prevSame, ...prevNear]) {
+            if (e.flags.some((f) => f.cat === "spam")) continue;
+            e.flags.push(flag);
+            e.maxSev = Math.max(e.maxSev, sev);
+            if (e.id) ids.push(e.id);
+          }
+          if (ids.length) {
+            relabels.push({ ids, flag });
+            u.flagged += ids.length;
+            u.cats.spam = (u.cats.spam || 0) + ids.length;
+          }
+        }
         const last10 = u.msgs.filter((x) => now - x.t < 10000).length;
         if (last10 >= 5) add("flood", 2, `10 sn'de ${last10 + 1} mesaj`);
+      }
+      if (this.opt.pollution !== false) {
+        // sohbet kirliliği: "aaaaaaaaaa", "bekirrrrrrrrr", "abi abi abi abi abi"
+        const clean = stripEmotes(raw);
+        const run = clean.match(/(\p{L})\1{9,}/iu);
+        const words = clean.toLocaleLowerCase("tr-TR").split(/\s+/).filter(Boolean);
+        const cnt = {};
+        let top = 0, topW = "";
+        for (const w of words) if ((cnt[w] = (cnt[w] || 0) + 1) > top) { top = cnt[w]; topW = w; }
+        if (run) add("kirlilik", 1, `uzatılmış harf: ${run[0].slice(0, 12)}…`);
+        else if (top >= 5 && top / words.length >= 0.6) add("kirlilik", 1, `"${topW}" ${top} kez`);
+        else if (/(.)\1{14,}/u.test(clean.replace(/\s/g, ""))) add("kirlilik", 1, "tekrar eden karakter");
       }
       if (this.opt.caps) {
         const c = capsInfo(raw, gib); // anlamsız büyük harf yığınları caps sayılmaz
@@ -517,9 +651,9 @@ class Detector {
       }
     }
 
-    const entry = { id: msg.id, t: now, m: raw, norm: tokens.join(" "), caps: capsInfo(raw, gib).caps, flags, maxSev: flags.reduce((s, f) => Math.max(s, f.sev), 0), isMod, isSub };
+    const entry = { id: msg.id, t: now, m: raw, norm: tokens.join(" "), st: stems(tokens), caps: capsInfo(raw, gib).caps, flags, maxSev: flags.reduce((s, f) => Math.max(s, f.sev), 0), isMod, isSub };
     u.msgs.push(entry);
-    if (u.msgs.length > 400) u.msgs.splice(0, u.msgs.length - 400);
+    if (u.msgs.length > 1500) u.msgs.splice(0, u.msgs.length - 1500);
     if (flags.length) {
       u.flagged++;
       u.score += flags.reduce((s, f) => s + f.sev, 0);
@@ -529,8 +663,21 @@ class Detector {
     }
     const touched = this._kavgaTouched;
     this._kavgaTouched = null;
-    return { entry, user: u, touched, relabel };
+    return { entry, user: u, touched, relabels };
   }
+}
+
+// Benzer mesaj: kelimelerin ilk 3 harfi (gök) üzerinden ortaklık. "abi gta 6 giricez mi" ~ "abi bugün yayında gta 6 girer miyiz"
+const STOP = new Set(["mi", "mu", "miyiz", "musun", "misin", "misiniz", "muyuz", "ve", "de", "da", "ki", "ya", "bu", "su", "o", "ne", "bir", "icin", "ile", "gibi", "cok", "daha", "hep", "en"]);
+function stems(tokens) {
+  return new Set(tokens.filter((t) => !STOP.has(t) && /[a-z0-9]/.test(t)).map((t) => (/^\d+$/.test(t) ? t : t.slice(0, 3))));
+}
+function similar(a, b) {
+  if (a.size < 2 || b.size < 2) return false;
+  let inter = 0;
+  for (const x of a) if (b.has(x)) inter++;
+  const small = Math.min(a.size, b.size);
+  return inter >= Math.min(3, small) && inter / small >= 0.6 && inter / Math.max(a.size, b.size) >= 0.4;
 }
 
 function hasWordRepeat(tokens, n) {
@@ -539,4 +686,4 @@ function hasWordRepeat(tokens, n) {
   return false;
 }
 
-module.exports = { Detector, normalize, CATS, SEV, isGibberish, explained, fuzzyMatch, scanProfanity };
+module.exports = { Detector, normalize, CATS, SEV, isGibberish, explained, fuzzyMatch, scanProfanity, shortRootHit, dictSize };

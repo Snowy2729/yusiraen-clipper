@@ -1,0 +1,8 @@
+- **Önemli düzeltme:** Windows kurulumunda 109 bin kelimelik sözlük okunamıyordu, bu yüzden "açıkmı" gibi normal kelimeler gizli küfür sanılabiliyordu. Düzeltildi; artık her sürüm yayınlanmadan önce Windows'ta test ediliyor
+- **Kayıtlı mesajlar:** Bağlandığın her yayın (kanal + tarih) tüm mesajları ve şüphelileriyle saklanır. Yeni sekmeden aç, ara, sadece işaretlileri gör, kullanıcıya çift tıklayıp o yayındaki tüm mesajlarını gör, istemediğini sil
+- **Kelime içinde oç / piç / sik:** "poç", "soç", "bapiç", "kahvesik", rastgele harflerin arasına saklanmış "kfakgjaoçaokfd" → **Şüpheli kelime**. "koç", "kerpiç", "eksik", "klasik", "bisiklet", "toplayarak" gibi gerçek kelimeler ve yazım hataları masum kalır
+- **Yapıştırılmış amk / mk / aq:** "onelamk", "harbiaq" yakalanır
+- **Spam artık gerçek spam:** aynı ya da çok benzer mesajı tekrar tekrar yazmak ("abi gta 6 giricez mi" / "abi bugün gta girecek miyiz"...). Tekrarların hepsi geriye dönük işaretlenir
+- **Sohbet kirliliği** (yeni kategori): "aaaaaaaaaa", "bekirrrrrrrr", "abi abi abi abi abi"
+- Kullanıcıya çift tıklayınca o yayındaki **tüm** mesajları görünür (temizler dahil); yayın başladı/bitti satırları sohbete düşer
+- Yeni kanala bağlanınca mesaj sayacı sıfırlanır

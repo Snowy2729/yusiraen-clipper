@@ -1,0 +1,6 @@
+# Windows derleyicisinde (GitHub Actions) satır sonları değişmesin: sözlük gibi metin dosyaları LF kalmalı
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.exe binary
+*.ttf binary

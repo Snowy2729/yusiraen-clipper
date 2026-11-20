@@ -44,7 +44,13 @@ const FUZZY = [
 const ANAN = ["anan", "anani", "ananin", "anana", "anasini", "anasinin", "bacini", "bacin", "bacina", "sulaleni", "avradini"];
 const SIKLIKE = ["sik", "sikim", "sikeyim", "sikerim", "sikiyim", "sikem", "koyim", "koyayim", "koyarim", "koydugum", "sokim", "sokayim", "sokarim"];
 
-module.exports = { ACRO_STRONG, ACRO_WEAK, EXACT, PREFIX, ADULT_EXACT, ADULT_PREFIX, STRONG_SUB, MEDIUM_SUB, TWO_SUB, FUZZY, ANAN, SIKLIKE };
+// Kelime içinde geçince ŞÜPHELİ sayılan kısa kökler (Türkçe harfleriyle; "oç"/"piç" mutlaka ç ile, "sik" noktalı i ile)
+const SHORT_ROOTS = ["piç", "oç", "sik"];
+// İçinde "oç" / "piç" geçen gerçek kelimeler (TDK ve sohbet sıklık listelerinden); bunlarla başlayan kelimeler masum
+// (koç, koçum, doçent, kerpiç, İskoçya...). "göç" yanlışlıkla "goç" yazılabildiği için o da var.
+const C_INNOCENT = ["biyoçeşitlilik", "doçent", "foça", "goç", "iskoç", "kamboçya", "karakoçan", "karoça", "kaçgoç", "kerpiç", "konargoçer", "koç", "köygoçüren", "loça", "malkoç", "mikroçip", "troçkici", "zangoç", "şereflikoçhisar"];
+
+module.exports = { SHORT_ROOTS, C_INNOCENT, ACRO_STRONG, ACRO_WEAK, EXACT, PREFIX, ADULT_EXACT, ADULT_PREFIX, STRONG_SUB, MEDIUM_SUB, TWO_SUB, FUZZY, ANAN, SIKLIKE };
 
 // Sohbette sık geçen, sözlükte olmayan masum kelimeler (argo, kısaltma, yayıncı adları)
 const CHAT_WORDS = ["slm", "mrb", "nbr", "naber", "kanka", "kanki", "aga", "abi", "abim", "abla", "xd", "xdd", "kekw", "lol", "gg", "wp", "pog", "poggers", "omg", "lan", "len",

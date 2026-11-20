@@ -11,6 +11,7 @@
   <div class="brand">YUSIRAEN <span>MOD</span></div>
   <nav>
     <button class="tab active" data-view="panel">Panel</button>
+    <button class="tab" data-view="saved">Kayıtlı mesajlar</button>
     <button class="tab" data-view="settings">Ayarlar</button>
   </nav>
   <div class="chan hidden" id="chanBox">
@@ -58,6 +59,34 @@
     </div>
   </section>
 
+  <!-- ============ KAYITLI MESAJLAR ============ -->
+  <section class="view" id="view-saved">
+    <div class="saved-list" id="savedList">
+      <div class="row between"><h2>Kayıtlı mesajlar</h2><div class="row"><span class="muted xs" id="savedTotal"></span><button class="btn small ghost" id="savedFolder">Klasörü aç</button></div></div>
+      <p class="muted xs">Bağlandığın her yayın (kanal + tarih) şüphelileri ve tüm mesajlarıyla burada saklanır. Başka kanala geçince ya da Ayrıl'a basınca önceki bağlantı buraya kaydedilir.</p>
+      <div id="savedItems"></div>
+    </div>
+    <div class="board hidden" id="savedBoard">
+      <div class="col feed-col">
+        <div class="col-head">
+          <button class="btn small ghost" id="savedBack">← Kayıtlar</button>
+          <b id="savedTitle"></b><span class="muted xs" id="savedSub"></span>
+          <span class="sp"></span>
+          <span class="muted xs" id="savedStats"></span>
+        </div>
+        <div class="row saved-tools"><input id="savedSearch" placeholder="Mesajda ya da kullanıcı adında ara..." spellcheck="false"><label class="check xs"><input type="checkbox" id="savedOnlyFlag"> Sadece işaretliler</label></div>
+        <div class="feed" id="savedFeed"></div>
+      </div>
+      <div class="col sus-col">
+        <div class="col-head"><b>Şüpheliler</b><span class="count" id="savedSusCount">0</span><span class="sp"></span>
+          <span class="seg" id="savedSort"><button data-v="new" class="on">Yeni</button><button data-v="sev">Önem</button></span></div>
+        <div class="filters" id="savedFilters"></div>
+        <div class="sus-list" id="savedSusList"></div>
+        <div class="hint">Çift tıkla: kullanıcının bu yayındaki tüm mesajları</div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ AYARLAR ============ -->
   <section class="view" id="view-settings">
     <div class="settings">
@@ -68,12 +97,13 @@
           <textarea id="wordsIn" rows="6" spellcheck="false" placeholder="ör.&#10;bedava skin&#10;takip et beni&#10;rakip yayıncının adı"></textarea></label>
         <div class="checks">
           <label class="check"><input type="checkbox" id="cProfanity"> Küfür</label>
-          <label class="check"><input type="checkbox" id="cHidden"> Gizli küfür (harf yığınına saklama, harf değiştirme) ve +18</label>
+          <label class="check"><input type="checkbox" id="cHidden"> Gizli küfür (harf yığınına saklama, harf değiştirme, kelime içinde oç/piç/sik) ve +18</label>
           <label class="check"><input type="checkbox" id="cAcrostic"> Akrostiş (mesajların ilk harfleri)</label>
           <label class="check"><input type="checkbox" id="cInsults"> Hakaret</label>
           <label class="check"><input type="checkbox" id="cThreats"> Tehdit</label>
           <label class="check"><input type="checkbox" id="cFights"> Kavga (karşılıklı sataşma)</label>
-          <label class="check"><input type="checkbox" id="cSpam"> Spam / flood</label>
+          <label class="check"><input type="checkbox" id="cSpam"> Spam (aynı ya da çok benzer mesajı tekrar yazmak) / flood</label>
+          <label class="check"><input type="checkbox" id="cPollution"> Sohbet kirliliği (aaaaaaa, abi abi abi abi...)</label>
           <label class="check"><input type="checkbox" id="cCaps"> Sürekli caps lock</label>
           <label class="check"><input type="checkbox" id="cLinks"> Link</label>
         </div>
@@ -105,7 +135,7 @@
     <span class="sp"></span>
     <button class="btn ghost small" id="drDismiss">✓ Temiz, listeden çıkar</button>
   </div>
-  <div class="dr-msgs-head"><b>Bu yayındaki mesajları</b> <span class="muted xs" id="drMsgCount"></span><span class="sp"></span><label class="check xs"><input type="checkbox" id="drOnlyFlag"> Sadece işaretliler</label></div>
+  <div class="dr-msgs-head"><b>Bu yayındaki tüm mesajları</b> <span class="muted xs" id="drMsgCount"></span><span class="sp"></span><label class="check xs"><input type="checkbox" id="drOnlyFlag"> Sadece işaretliler</label></div>
   <div class="dr-msgs" id="drMsgs"></div>
 </aside>
 
