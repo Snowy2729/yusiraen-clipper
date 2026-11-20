@@ -40,13 +40,11 @@ function avatar(el, name, url) {
   el.textContent = url ? "" : (name || "?")[0].toUpperCase();
 }
 let toastT;
-function toast(text, undo) {
+function toast(text) {
   $("toastText").textContent = text;
-  $("toastUndo").classList.toggle("hidden", !undo);
-  $("toastUndo").onclick = undo ? () => { undo(); $("toast").classList.remove("show"); } : null;
   $("toast").classList.add("show");
   clearTimeout(toastT);
-  toastT = setTimeout(() => $("toast").classList.remove("show"), undo ? 6000 : 2800);
+  toastT = setTimeout(() => $("toast").classList.remove("show"), 2800);
 }
 function modal(title, html, buttons) {
   return new Promise((res) => {
@@ -242,7 +240,6 @@ function renderSuspects(fresh = new Set()) {
     $("susList").innerHTML = `<div class="empty">${all.length ? "Bu filtrede kimse yok." : "Henüz kimse yakalanmadı. Sohbet temiz 👌"}</div>`;
     return;
   }
-  const qt = (settings && settings.defaultTimeout) || 10;
   $("susList").innerHTML = list
     .slice(0, 300)
     .map((u) => {
@@ -252,7 +249,7 @@ function renderSuspects(fresh = new Set()) {
         <i class="bar s${sev}"></i>
         <div style="min-width:0"><div class="top"><span class="nm">${esc(u.name)}</span><span class="x">${u.flagged}×</span>${cats}<span class="ago">${u.lastAt ? ago(u.lastAt) : ""}</span></div>
         <div class="lm">${u.last ? fmtMsg(u.last.m) : ""}</div></div>
-        <div class="acts"><button class="btn small" data-a="to" title="${qt} dk timeout">⏱ ${qt}dk</button><button class="btn small danger" data-a="ban" title="Kalıcı ban">🔨</button><button class="btn small ghost" data-a="ok" title="Temiz, listeden çıkar">✓</button></div>
+        <div class="acts"><button class="btn small" data-a="cp" title="Kullanıcı adını kopyala">Kopyala</button><button class="btn small ghost" data-a="ok" title="Temiz, listeden çıkar">✓</button></div>
       </div>`;
     })
     .join("");
@@ -260,8 +257,7 @@ function renderSuspects(fresh = new Set()) {
     el.onclick = (e) => {
       const a = e.target.dataset.a;
       const k = el.dataset.k;
-      if (a === "to") return quickTimeout(k, qt);
-      if (a === "ban") return doBan(k);
+      if (a === "cp") return copyName(k);
       if (a === "ok") return doDismiss(k);
       selectedKey = k;
       $("susList").querySelectorAll(".sus").forEach((x) => x.classList.toggle("sel", x === el));
@@ -283,34 +279,8 @@ function nameOf(k) {
   const u = suspects.get(k);
   return u ? u.name : (drawerData && drawerData.user && drawerData.user.key === k ? drawerData.user.name : k);
 }
-function reasonFor(k) {
-  const u = suspects.get(k);
-  if (!u) return "Sohbet kuralları";
-  const top = Object.entries(u.cats).sort((a, b) => b[1] - a[1])[0];
-  return top ? CAT_LABEL[top[0]] : "Sohbet kuralları";
-}
-async function quickTimeout(k, minutes) {
-  const r = await api.timeout({ key: k, minutes, reason: reasonFor(k) });
-  if (r.error) return modal("Timeout atılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
-  toast(`⏱ ${nameOf(k)} → ${minutes >= 1440 ? minutes / 1440 + " gün" : minutes >= 60 ? minutes / 60 + " saat" : minutes + " dk"} timeout`, () => doUnban(k, true));
-  if (drawerKey === k) loadDrawer(k, true);
-}
-async function doBan(k) {
-  const reason = await modal(`${nameOf(k)} kalıcı banlansın mı?`, `<div class="muted">Sebep (isteğe bağlı):</div><input value="${esc(reasonFor(k))}">`, [
-    { label: "Vazgeç", value: null, kind: "ghost" },
-    { label: "🔨 Banla", value: "input", kind: "danger" },
-  ]);
-  if (reason === null) return;
-  const r = await api.ban({ key: k, reason });
-  if (r.error) return modal("Ban atılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
-  toast(`🔨 ${nameOf(k)} banlandı`, () => doUnban(k, true));
-  if (drawerKey === k) loadDrawer(k, true);
-}
-async function doUnban(k, silent) {
-  const r = await api.unban({ key: k });
-  if (r.error) return modal("Kaldırılamadı", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
-  if (!silent || true) toast(`${nameOf(k)} için ban/timeout kaldırıldı`);
-  if (drawerKey === k) loadDrawer(k, true);
+function copyName(k) {
+  navigator.clipboard.writeText(nameOf(k)).then(() => toast(`"${nameOf(k)}" kopyalandı`));
 }
 async function doDismiss(k) {
   await api.userDismiss(k);
@@ -319,7 +289,6 @@ async function doDismiss(k) {
   renderSuspects();
   if (drawerKey === k) closeDrawer();
 }
-api.onAction(() => {});
 
 // ---------- kullanıcı detayı (çekmece) ----------
 function openDrawer(k) {
@@ -362,21 +331,12 @@ async function loadDrawer(k, quiet) {
   const msgs = (only ? d.messages.filter((m) => m.flags.length) : d.messages).slice().reverse();
   $("drMsgCount").textContent = `${d.messages.length} mesaj · ${d.messages.filter((m) => m.flags.length).length} işaretli`;
   $("drMsgs").innerHTML = msgs.length
-    ? msgs.map((m) => `<div class="msg ${m.maxSev ? "f" + m.maxSev : ""}"><span class="tm">${hhmmss(m.t)}</span><span class="tx">${fmtMsg(m.m)}${m.flags.map((f) => `<span class="fl s${f.sev}" title="${esc(f.match || "")}">${esc(f.label)}</span>`).join("")}</span>${m.flags.length && m.id ? `<button class="btn ghost" data-del="${esc(m.id)}">Sil</button>` : ""}</div>`).join("")
+    ? msgs.map((m) => `<div class="msg ${m.maxSev ? "f" + m.maxSev : ""}"><span class="tm">${hhmmss(m.t)}</span><span class="tx">${fmtMsg(m.m)}${m.flags.map((f) => `<span class="fl s${f.sev}" title="${esc(f.match || "")}">${esc(f.label)}</span>`).join("")}</span></div>`).join("")
     : `<div class="empty">Mesaj yok.</div>`;
-  $("drMsgs").querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
-    const r = await api.deleteMsg({ key: k, messageId: b.dataset.del });
-    if (r.error) return modal("Mesaj silinemedi", esc(r.error), [{ label: "Tamam", value: 1, kind: "primary" }]);
-    b.closest(".msg").classList.add("deleted");
-    toast("Mesaj silindi");
-  }));
-  const L = { timeout: "timeout", ban: "ban", unban: "ban/timeout kaldırma", delete: "mesaj silme" };
-  $("drLog").innerHTML = (d.actions || []).map((a) => `• ${hhmmss(a.at)} — ${esc(a.by)}: ${L[a.type] || a.type}${a.minutes ? ` (${a.minutes} dk)` : ""}${a.reason ? ` · ${esc(a.reason)}` : ""}`).join("<br>");
 }
 $("drOnlyFlag").onchange = () => drawerKey && loadDrawer(drawerKey);
-$("toBtns").querySelectorAll("button").forEach((b) => (b.onclick = () => drawerKey && quickTimeout(drawerKey, Number(b.dataset.min))));
-$("drBan").onclick = () => drawerKey && doBan(drawerKey);
-$("drUnban").onclick = () => drawerKey && doUnban(drawerKey);
+$("drCopy").onclick = () => drawerKey && copyName(drawerKey);
+$("drOpenKick").onclick = () => drawerKey && api.openUrl(`https://kick.com/${encodeURIComponent(nameOf(drawerKey).toLowerCase())}`);
 $("drDismiss").onclick = () => drawerKey && doDismiss(drawerKey);
 
 // ---------- ayarlar ----------
@@ -393,7 +353,6 @@ async function fillSettings() {
   $("wordsIn").value = (settings.customWords || []).join("\n");
   const map = { cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
   for (const [id, k] of Object.entries(map)) $(id).checked = !!settings[k];
-  $("defTo").value = String(settings.defaultTimeout || 10);
   $("verTxt").textContent = "v" + (await api.appVersion());
 }
 $("copyRedir").onclick = () => navigator.clipboard.writeText($("redirUrl").textContent).then(() => toast("Kopyalandı"));
@@ -427,7 +386,6 @@ $("saveDet").onclick = async () => {
     profanity: $("cProfanity").checked, insults: $("cInsults").checked, threats: $("cThreats").checked, fights: $("cFights").checked,
     spam: $("cSpam").checked, caps: $("cCaps").checked, links: $("cLinks").checked,
     ignoreMods: $("cIgnoreMods").checked, ignoreSubs: $("cIgnoreSubs").checked, sound: $("cSound").checked,
-    defaultTimeout: Number($("defTo").value) || 10,
   });
   $("detMsg").textContent = "Kaydedildi ✓ (yeni mesajlara uygulanır)";
   setTimeout(() => ($("detMsg").textContent = ""), 2500);

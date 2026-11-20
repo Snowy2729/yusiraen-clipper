@@ -1,4 +1,4 @@
-// Kick hesabıyla giriş (OAuth 2.1 + PKCE) ve resmi API ile moderasyon (ban / timeout / mesaj silme)
+// Kick hesabıyla giriş (OAuth 2.1 + PKCE). Sadece kimlik doğrulama için: kullanıcının kanalda moderatör olduğunu kontrol ederiz.
 const { net, shell, safeStorage } = require("electron");
 const http = require("http");
 const crypto = require("crypto");
@@ -13,7 +13,7 @@ const E = {
 };
 const PORT = Number(process.env.KICK_REDIRECT_PORT) || 53682;
 const REDIRECT = `http://localhost:${PORT}/callback`;
-const SCOPES = ["user:read", "channel:read", "moderation:ban", "moderation:chat_message:manage"];
+const SCOPES = ["user:read"];
 
 class KickAuth {
   constructor(root) {
@@ -163,7 +163,6 @@ class KickAuth {
     if (!r.ok) {
       const msg = j.message || j.error || txt.slice(0, 120) || r.status;
       if (r.status === 401) throw new Error("Kick oturumu geçersiz, tekrar giriş yap.");
-      if (r.status === 403) throw new Error("Bu işlem için yetkin yok (bu kanalda moderatör değilsin ya da izin verilmedi). " + msg);
       throw new Error("Kick: " + msg);
     }
     return j;
@@ -174,19 +173,6 @@ class KickAuth {
     this.data.me = { id: me.user_id || me.id, name: me.name || me.username, avatar: me.profile_picture || null };
     this._save();
     return this.data.me;
-  }
-  // duration: dakika (1-10080). Verilmezse kalıcı ban.
-  ban(broadcasterId, userId, { minutes, reason } = {}) {
-    const body = { broadcaster_user_id: Number(broadcasterId), user_id: Number(userId) };
-    if (minutes) body.duration = Math.max(1, Math.min(10080, Math.round(minutes)));
-    if (reason) body.reason = String(reason).slice(0, 100);
-    return this.api("POST", "/moderation/bans", body);
-  }
-  unban(broadcasterId, userId) {
-    return this.api("DELETE", "/moderation/bans", { broadcaster_user_id: Number(broadcasterId), user_id: Number(userId) });
-  }
-  deleteMessage(messageId) {
-    return this.api("DELETE", `/chat/${encodeURIComponent(messageId)}`);
   }
 }
 

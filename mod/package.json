@@ -1,8 +1,8 @@
 {
   "name": "yusiraen-mod",
   "productName": "Yusiraen Mod",
-  "version": "1.0.0",
-  "description": "Kick sohbetinde küfür, hakaret, kavga, spam ve caps yazanları canlı yakalayan moderatör paneli",
+  "version": "1.0.1",
+  "description": "Kick sohbetinde küfür, hakaret, kavga, spam ve caps yazanları canlı yakalayan tespit paneli",
   "author": "Yusiraen",
   "main": "src/main.js",
   "scripts": {

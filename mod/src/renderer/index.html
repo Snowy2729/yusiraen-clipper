@@ -60,7 +60,7 @@
         </div>
         <div class="filters" id="susFilters"></div>
         <div class="sus-list" id="susList"><div class="empty">Henüz kimse yakalanmadı. Sohbet temiz 👌</div></div>
-        <div class="hint">Çift tıkla: kullanıcının bu yayındaki tüm mesajları ve işlemler</div>
+        <div class="hint">Çift tıkla: kullanıcının bu yayındaki tüm mesajları</div>
       </div>
     </div>
   </section>
@@ -74,13 +74,13 @@
 
       <h3>Kick uygulaması <span class="muted xs">(bir kerelik kurulum)</span></h3>
       <div class="box">
-        <p class="muted small">Giriş ve ban/timeout için bir Kick geliştirici uygulaması gerekir. <b>Yalnızca bir kişinin</b> (ör. sen) oluşturması yeterli; diğer modlara <b>ekip kodunu</b> verirsin.</p>
+        <p class="muted small">Moderatör doğrulaması (Kick ile giriş) için bir Kick geliştirici uygulaması gerekir. <b>Yalnızca bir kişinin</b> (ör. sen) oluşturması yeterli; diğer modlara <b>ekip kodunu</b> verirsin.</p>
         <details class="guide"><summary>Nasıl oluşturulur? (ücretsiz, ~3 dakika)</summary>
           <ol>
             <li><b>kick.com</b>'da hesabına gir → sağ üst profil → <b>Ayarlar → Geliştirici</b> (kick.com/settings/developer).</li>
             <li><b>Create App / Uygulama oluştur</b>. Ad: Yusiraen Mod.</li>
             <li><b>Redirect URL</b> alanına tam olarak şunu yaz: <code id="redirUrl"></code> <button class="btn small ghost" id="copyRedir">Kopyala</button></li>
-            <li>İzinlerden şunları seç: <b>Read user information</b>, <b>Read channel information</b>, <b>Moderate chat (ban/timeout)</b>, <b>Manage chat messages</b>.</li>
+            <li>İzinlerden sadece <b>Read user information</b> (kullanıcı bilgisini okuma) yeterli. Uygulama başka hiçbir şeye erişmez.</li>
             <li>Oluşan <b>Client ID</b> ve <b>Client Secret</b>'ı aşağıya yapıştır, Kaydet.</li>
           </ol>
         </details>
@@ -112,7 +112,6 @@
           <label class="check"><input type="checkbox" id="cIgnoreSubs"> Abone mesajlarını tarama</label>
           <label class="check"><input type="checkbox" id="cSound"> Yüksek önemde ses çal</label>
         </div>
-        <label class="field inline"><span>Hızlı timeout süresi</span><select id="defTo"><option value="1">1 dk</option><option value="5">5 dk</option><option value="10">10 dk</option><option value="30">30 dk</option><option value="60">1 saat</option></select></label>
         <div class="row end"><span class="muted xs" id="detMsg"></span><button class="btn primary" id="saveDet">Kaydet</button></div>
       </div>
       <div class="box row between"><div><b>Yusiraen Mod</b> <span class="muted" id="verTxt"></span><div class="muted xs" id="updMsg">Yeni sürümleri kendisi kontrol eder.</div></div><button class="btn" id="checkUpd">Güncellemeleri denetle</button></div>
@@ -130,24 +129,18 @@
   </div>
   <div class="dr-info" id="drInfo"></div>
   <div class="dr-cats" id="drCats"></div>
-  <div class="dr-actions">
-    <div class="muted xs">Timeout</div>
-    <div class="row wrap" id="toBtns">
-      <button class="btn small" data-min="1">1 dk</button><button class="btn small" data-min="10">10 dk</button><button class="btn small" data-min="60">1 saat</button><button class="btn small" data-min="1440">1 gün</button><button class="btn small" data-min="10080">7 gün</button>
-    </div>
-    <div class="row wrap" style="margin-top:8px">
-      <button class="btn danger small" id="drBan">🔨 Kalıcı ban</button>
-      <button class="btn ghost small" id="drUnban">Ban / timeout kaldır</button>
-      <button class="btn ghost small" id="drDismiss">✓ Temiz, listeden çıkar</button>
-    </div>
+  <div class="dr-actions row wrap">
+    <button class="btn small" id="drCopy">Kullanıcı adını kopyala</button>
+    <button class="btn small" id="drOpenKick">Kick'te profilini aç</button>
+    <span class="sp"></span>
+    <button class="btn ghost small" id="drDismiss">✓ Temiz, listeden çıkar</button>
   </div>
   <div class="dr-msgs-head"><b>Bu yayındaki mesajları</b> <span class="muted xs" id="drMsgCount"></span><span class="sp"></span><label class="check xs"><input type="checkbox" id="drOnlyFlag"> Sadece işaretliler</label></div>
   <div class="dr-msgs" id="drMsgs"></div>
-  <div class="dr-log" id="drLog"></div>
 </aside>
 
 <div class="modal-bg hidden" id="modal"><div class="modal"><h3 id="mTitle"></h3><div id="mBody"></div><div class="m-btns" id="mBtns"></div></div></div>
-<div class="toast" id="toast"><span id="toastText"></span><button class="btn small ghost hidden" id="toastUndo">Geri al</button></div>
+<div class="toast" id="toast"><span id="toastText"></span></div>
 <script src="app.js"></script>
 </body>
 </html>

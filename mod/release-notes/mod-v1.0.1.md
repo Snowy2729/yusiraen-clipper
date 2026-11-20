@@ -1,0 +1,3 @@
+- Uygulama artık **sadece tespit** yapıyor: ban, timeout ve mesaj silme kaldırıldı (işlemleri Kick'in kendi sohbetinden yaparsın)
+- Kick girişi yalnızca moderatör doğrulaması için; Kick'ten istenen izin **sadece kullanıcı bilgisini okuma**
+- Şüpheliler listesine ve kullanıcı detayına **"Kullanıcı adını kopyala"** ve **"Kick'te profilini aç"** eklendi

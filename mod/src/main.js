@@ -20,7 +20,6 @@ const detector = new Detector();
 let live = null; // { slug, info, recorder, me, role }
 let outQueue = [];
 let flushTimer = null;
-const actionLog = [];
 
 const DEFAULTS = {
   lastChannel: "",
@@ -225,70 +224,13 @@ ipcMain.handle("user:detail", async (_, key) => {
   if (!u) return { error: "Kullanıcı bulunamadı." };
   const card = live ? await kick.userCard(live.slug, u.name) : null;
   if (card && card.id && !u.id) u.id = card.id;
-  return { user: summary(u), messages: u.msgs.map((x) => ({ id: x.id, t: x.t, m: x.m, flags: x.flags, maxSev: x.maxSev })), card, actions: actionLog.filter((a) => a.key === u.key) };
+  return { user: summary(u), messages: u.msgs.map((x) => ({ id: x.id, t: x.t, m: x.m, flags: x.flags, maxSev: x.maxSev })), card };
 });
 ipcMain.handle("user:dismiss", (_, key) => {
   const u = detector.users.get(String(key).toLowerCase());
   if (u) u.dismissedAt = Date.now();
   return { ok: true };
 });
-
-// ---------------- Moderasyon işlemleri ----------------
-async function targetId(key) {
-  const u = detector.users.get(String(key).toLowerCase());
-  if (!u) throw new Error("Kullanıcı bulunamadı.");
-  if (!u.id && live) {
-    const c = await kick.userCard(live.slug, u.name);
-    if (c.id) u.id = c.id;
-  }
-  if (!u.id) throw new Error("Kullanıcının Kick kimliği bulunamadı.");
-  return u;
-}
-function logAction(a) {
-  const item = { ...a, at: Date.now(), by: live && live.me ? live.me.name : "" };
-  actionLog.unshift(item);
-  send("mod:action", item);
-  return item;
-}
-ipcMain.handle("mod:timeout", async (_, { key, minutes, reason }) => {
-  try {
-    if (!live) throw new Error("Bir kanala bağlı değilsin.");
-    const u = await targetId(key);
-    await auth.ban(live.info.userId, u.id, { minutes, reason });
-    return { ok: true, action: logAction({ type: "timeout", key: u.key, name: u.name, minutes, reason }) };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-ipcMain.handle("mod:ban", async (_, { key, reason }) => {
-  try {
-    if (!live) throw new Error("Bir kanala bağlı değilsin.");
-    const u = await targetId(key);
-    await auth.ban(live.info.userId, u.id, { reason });
-    return { ok: true, action: logAction({ type: "ban", key: u.key, name: u.name, reason }) };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-ipcMain.handle("mod:unban", async (_, { key }) => {
-  try {
-    if (!live) throw new Error("Bir kanala bağlı değilsin.");
-    const u = await targetId(key);
-    await auth.unban(live.info.userId, u.id);
-    return { ok: true, action: logAction({ type: "unban", key: u.key, name: u.name }) };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-ipcMain.handle("mod:delete", async (_, { key, messageId }) => {
-  try {
-    await auth.deleteMessage(messageId);
-    return { ok: true, action: logAction({ type: "delete", key, name: key, messageId }) };
-  } catch (e) {
-    return { error: e.message };
-  }
-});
-ipcMain.handle("mod:log", () => actionLog);
 
 // ---------------- Güncelleme ----------------
 let pendingUpdate = null;
