@@ -29,6 +29,8 @@ const DEFAULTS = {
   caps: true,
   links: true,
   fights: true,
+  hidden: true,
+  acrostic: true,
   ignoreMods: true,
   ignoreSubs: false,
   sound: true,
@@ -115,7 +117,7 @@ function flushOut() {
   const batch = outQueue.splice(0);
   const users = new Map();
   for (const b of batch) for (const u of b.users) users.set(u.key, u);
-  send("chat:batch", { messages: batch.map((b) => b.msg), users: [...users.values()].map(summary) });
+  send("chat:batch", { messages: batch.map((b) => b.msg), users: [...users.values()].map(summary), relabels: batch.map((b) => b.relabel).filter(Boolean) });
 }
 
 function disconnect() {
@@ -156,9 +158,9 @@ ipcMain.handle("chat:connect", async (_, slugIn) => {
     setTimeout(() => live && live.recorder === rec && rec.start(), 2000);
   });
   rec.on("message", (m) => {
-    const { entry, user, touched } = detector.analyze(m);
+    const { entry, user, touched, relabel } = detector.analyze(m);
     const msg = { id: m.id, t: entry.t, u: m.u, key: user.key, uid: m.uid, color: m.color, badges: m.badges, m: m.m, flags: entry.flags, maxSev: entry.maxSev };
-    outQueue.push({ msg, users: [user, touched].filter((x) => x && x.flagged) });
+    outQueue.push({ msg, users: [user, touched].filter((x) => x && x.flagged), relabel });
     if (entry.maxSev >= 3 && !win.isFocused() && Notification.isSupported()) {
       new Notification({ title: `Yusiraen Mod — ${entry.flags[0].label}`, body: `${m.u}: ${m.m.slice(0, 120)}` }).show();
     }

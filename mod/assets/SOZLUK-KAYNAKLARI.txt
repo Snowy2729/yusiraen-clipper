@@ -1,0 +1,6 @@
+Yusiraen Mod sözlüğü (sozluk.txt) şu açık kaynak kelime listelerinden üretilmiştir (küfürler çıkarılarak):
+- Türkçe kelime listesi (TDK tabanlı): github.com/CanNuhlar/Turkce-Kelime-Listesi
+- Türkçe kelime listesi: github.com/mertemin/turkish-word-list
+- FrequencyWords (OpenSubtitles 2018, tr 50k) — Hermit Dave, CC BY-SA 4.0: github.com/hermitdave/FrequencyWords
+- google-10000-english (no swears): github.com/first20hours/google-10000-english
+Üretmek için: node tools/build-dictionary.js <listeler...> > assets/sozluk.txt

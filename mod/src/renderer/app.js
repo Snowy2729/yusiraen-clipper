@@ -12,7 +12,8 @@ let pausedNew = 0;
 let msgCount = 0;
 let flagCount = 0;
 const MAX_FEED = 500;
-const CAT_LABEL = { kufur: "Küfür", hakaret: "Hakaret", tehdit: "Tehdit", kavga: "Kavga", spam: "Spam", flood: "Flood", caps: "Caps", link: "Link", ozel: "Özel kelime" };
+const CAT_LABEL = { kufur: "Küfür", gizli: "Gizli küfür", akrostis: "Akrostiş", mustehcen: "+18", hakaret: "Hakaret", tehdit: "Tehdit", kavga: "Kavga", spam: "Spam", flood: "Flood", caps: "Caps", link: "Link", ozel: "Özel kelime" };
+const CAT_SEV = { kufur: 3, gizli: 3, akrostis: 3, tehdit: 3, kavga: 3, ozel: 3, mustehcen: 2, hakaret: 2, link: 2, flood: 2, spam: 1, caps: 1 };
 
 // ---------- yardımcılar ----------
 function esc(t) {
@@ -158,7 +159,7 @@ feed.addEventListener("click", (e) => {
   if (k) openDrawer(k);
 });
 
-api.onBatch(({ messages, users }) => {
+api.onBatch(({ messages, users, relabels }) => {
   if (!connected) return;
   const atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
   feed.insertAdjacentHTML("beforeend", messages.map(msgHtml).join(""));
@@ -178,6 +179,17 @@ api.onBatch(({ messages, users }) => {
     if (!prev || u.lastAt > prev.lastAt) fresh.add(u.key);
     suspects.set(u.key, u);
   }
+  // akrostiş: daha önce akmış mesajları da geriye dönük işaretle
+  for (const r of relabels || []) {
+    for (const id of r.ids) {
+      const el = feed.querySelector(`.msg[data-id="${CSS.escape(id)}"]`);
+      if (el && !el.querySelector(".fl.acro")) {
+        el.classList.remove("f1", "f2");
+        el.classList.add("f" + r.flag.sev);
+        el.insertAdjacentHTML("beforeend", `<span class="fl s${r.flag.sev} acro" title="${esc(r.flag.match)}">Akrostiş</span>`);
+      }
+    }
+  }
   if (newFlags.some((m) => m.maxSev >= 3)) beep();
   renderSuspects(fresh);
   if (drawerKey && users.some((u) => u.key === drawerKey)) loadDrawer(drawerKey, true);
@@ -192,6 +204,15 @@ api.onModEvent((e) => {
 });
 
 // ---------- şüpheliler ----------
+// Gizli küfür / akrostiş / +18 için "neden yakalandı" açıklaması: "≈ porno", "→ yarak", "YARRAK (6 mesajın ilk harfi)"
+function hintFor(last) {
+  if (!last || !last.flags) return "";
+  const f = last.flags.find((x) => x.cat === "gizli" || x.cat === "akrostis" || x.cat === "mustehcen");
+  if (!f || !f.match) return "";
+  const m = f.cat === "akrostis" ? f.match : (f.match.match(/[→≈]\s*(.+)$/) || [null, f.match])[1];
+  const sym = f.cat === "akrostis" ? "" : /≈/.test(f.match) ? "≈ " : "→ ";
+  return ` <span class="why">${esc(sym + m)}</span>`;
+}
 function visibleSuspects() {
   return [...suspects.values()].filter((u) => u.flagged > 0 && !(u.dismissedAt && u.lastAt <= u.dismissedAt));
 }
@@ -214,11 +235,11 @@ function renderSuspects(fresh = new Set()) {
     .slice(0, 300)
     .map((u) => {
       const sev = u.last ? u.last.maxSev : 1;
-      const cats = Object.entries(u.cats).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, n]) => `<span class="fl s${c === "kufur" || c === "tehdit" || c === "kavga" || c === "ozel" ? 3 : c === "caps" || c === "spam" ? 1 : 2}">${CAT_LABEL[c]}${n > 1 ? " ×" + n : ""}</span>`).join("");
+      const cats = Object.entries(u.cats).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, n]) => `<span class="fl s${CAT_SEV[c] || 2}">${CAT_LABEL[c]}${n > 1 ? " ×" + n : ""}</span>`).join("");
       return `<div class="sus ${selectedKey === u.key ? "sel" : ""} ${fresh.has(u.key) ? "new" : ""}" data-k="${esc(u.key)}">
         <i class="bar s${sev}"></i>
         <div style="min-width:0"><div class="top"><span class="nm">${esc(u.name)}</span><span class="x">${u.flagged}×</span>${cats}<span class="ago">${u.lastAt ? ago(u.lastAt) : ""}</span></div>
-        <div class="lm">${u.last ? fmtMsg(u.last.m) : ""}</div></div>
+        <div class="lm">${u.last ? fmtMsg(u.last.m) : ""}${hintFor(u.last)}</div></div>
         <div class="acts"><button class="btn small" data-a="cp" title="Kullanıcı adını kopyala">Kopyala</button><button class="btn small ghost" data-a="ok" title="Temiz, listeden çıkar">✓</button></div>
       </div>`;
     })
@@ -296,12 +317,12 @@ async function loadDrawer(k, quiet) {
     <div><b>${fol == null ? "takip etmiyor" : fol < 1 ? "bugün" : fol + " gün"}</b><small>takip</small></div>
     <div><b>${c.subscribedFor ? c.subscribedFor + " ay" : "—"}</b><small>abonelik</small></div>
     <div class="${c.banned ? "warn" : ""}"><b>${c.banned ? (c.banned.permanent === false || c.banned.expires_at ? "timeout'ta" : "banlı") : "aktif"}</b><small>durum</small></div>`;
-  $("drCats").innerHTML = Object.entries(u.cats).map(([cat, n]) => `<span class="fl s${cat === "caps" || cat === "spam" ? 1 : cat === "hakaret" || cat === "link" || cat === "flood" ? 2 : 3}">${CAT_LABEL[cat]} ×${n}</span>`).join("") + (u.partners.length ? `<span class="muted xs">Kavga ettiği: ${u.partners.map(esc).join(", ")}</span>` : "");
+  $("drCats").innerHTML = Object.entries(u.cats).map(([cat, n]) => `<span class="fl s${CAT_SEV[cat] || 2}">${CAT_LABEL[cat]} ×${n}</span>`).join("") + (u.partners.length ? `<span class="muted xs">Kavga ettiği: ${u.partners.map(esc).join(", ")}</span>` : "");
   const only = $("drOnlyFlag").checked;
   const msgs = (only ? d.messages.filter((m) => m.flags.length) : d.messages).slice().reverse();
   $("drMsgCount").textContent = `${d.messages.length} mesaj · ${d.messages.filter((m) => m.flags.length).length} işaretli`;
   $("drMsgs").innerHTML = msgs.length
-    ? msgs.map((m) => `<div class="msg ${m.maxSev ? "f" + m.maxSev : ""}"><span class="tm">${hhmmss(m.t)}</span><span class="tx">${fmtMsg(m.m)}${m.flags.map((f) => `<span class="fl s${f.sev}" title="${esc(f.match || "")}">${esc(f.label)}</span>`).join("")}</span></div>`).join("")
+    ? msgs.map((m) => `<div class="msg ${m.maxSev ? "f" + m.maxSev : ""}"><span class="tm">${hhmmss(m.t)}</span><span class="tx">${fmtMsg(m.m)}${m.flags.map((f) => `<span class="fl s${f.sev}" title="${esc(f.match || "")}">${esc(f.label)}</span>`).join("")}${hintFor(m)}</span></div>`).join("")
     : `<div class="empty">Mesaj yok.</div>`;
 }
 $("drOnlyFlag").onchange = () => drawerKey && loadDrawer(drawerKey);
@@ -313,13 +334,14 @@ $("drDismiss").onclick = () => drawerKey && doDismiss(drawerKey);
 async function fillSettings() {
   settings = await api.settingsGet();
   $("wordsIn").value = (settings.customWords || []).join("\n");
-  const map = { cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
+  const map = { cHidden: "hidden", cAcrostic: "acrostic", cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
   for (const [id, k] of Object.entries(map)) $(id).checked = !!settings[k];
   $("verTxt").textContent = "v" + (await api.appVersion());
 }
 $("saveDet").onclick = async () => {
   settings = await api.settingsSave({
     customWords: $("wordsIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
+    hidden: $("cHidden").checked, acrostic: $("cAcrostic").checked,
     profanity: $("cProfanity").checked, insults: $("cInsults").checked, threats: $("cThreats").checked, fights: $("cFights").checked,
     spam: $("cSpam").checked, caps: $("cCaps").checked, links: $("cLinks").checked,
     ignoreMods: $("cIgnoreMods").checked, ignoreSubs: $("cIgnoreSubs").checked, sound: $("cSound").checked,
