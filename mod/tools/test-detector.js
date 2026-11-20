@@ -35,6 +35,11 @@ for (const seq of [["abi gta geçelim artık", "abi gta geçelim artık", "abi g
   for (const m of ["selam abi", "abi gta ne zaman", "bugün maç var mı", "sesi biraz aç abi", "abi gta 6 bugün mü", "yarın gta 6 var mı", "helal olsun güzel oynadın"]) any = any || sd.analyze({ t: (t += 15000), u: "konuskan", m }).entry.flags.some((f) => f.cat === "spam");
   n++; if (any) { fail++; console.log("✗ normal sohbet spam sanıldı"); } }
 for (const [m, c] of [["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "kirlilik"], ["bekirrrrrrrrrrrrrrrr", "kirlilik"], ["abi abi abi abi abi abi abi abi abi abi", "kirlilik"], ["abiiiiiiiiiiiiiiiiiiiiiiii", "kirlilik"]]) expect(m, c);
+for (const m of ["https://kick.com/rraenee/clips/clip_01M7WYSZ8HFKBMXQJP8P1QAARN", "bak bu çok iyi https://kick.com/rraenee/clips/clip_01M7WYSZ8HFKBMXQJP8P1QAARN", "https://kick.com/rraenee?clip=clip_01JABCSIKAMK", "kick.com/rraenee/videos/abc"]) expect(m, null);
+expect("https://kick.com/rraenee/clips/clip_01ABC discord.gg/xyz", "link");
+{ const sd = new Detector({ ignoreMods: false }); const C = "https://kick.com/rraenee/clips/clip_01M7WYSZ8HFKBMXQJP8P1QAARN";
+  for (let i = 0; i < 4; i++) sd.analyze({ t: (t += 15000), u: "clipci", m: C, id: "cl" + i });
+  n++; const k = sd.users.get("clipci").msgs.filter((e) => e.flags.some((f) => f.cat === "spam")).length; if (k !== 4) { fail++; console.log(`✗ aynı clip linki 4 kez → ${k}/4 spam`); } }
 for (const m of ["abiii naber", "gooool", "bekirrr gel", "çok iyi oynadın abi helal"]) expect(m, null);
 console.log(`${n - fail}/${n} doğru`);
 process.exit(fail ? 1 : 0);

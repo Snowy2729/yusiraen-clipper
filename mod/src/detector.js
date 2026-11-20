@@ -241,7 +241,8 @@ const THREAT_PHRASE = /\b(seni|sizi|onu) (bul(ur|ac|aca)\w*|gebert\w*|oldur\w*|k
 const THREAT_VERB = /\b(oldurur(um|uz)|olduruce(gim|m)|oldurce(m|gim)|oldurece(gim|giz)|gebertir(im|iz)|gebertece(gim|m)|gebertcem|dover(im|iz)|dovece(gim|m)|dovcem|vurur(um|uz)|bicaklar(im|iz)|keser(im|iz))\b/;
 const DIRECT_TOKENS = new Set(["sen", "seni", "senin", "sana", "lan", "olum", "oglum", "len", "ula", "lyn", "siz", "sizin", "size", "aga"]);
 const LINK_RE = /(https?:\/\/|www\.|discord\.gg|\b[a-z0-9-]{2,}\.(com|net|org|gg|tv|xyz|ru|io|me|link|site|live|shop|store|app)\b)/i;
-const KICK_LINK_RE = /(^|\W)(kick\.com)(\/|\b)/i;
+// Sohbette serbest: Kick linkleri (clip, video, kanal). Aynı linki tekrar tekrar atmak yine spam sayılır.
+const KICK_OK_RE = /(?:https?:\/\/)?(?:www\.)?kick\.com(?:\/\S*)?/gi;
 
 function insultRoot(t) {
   if (INSULT_EXACT.includes(t) || INSULT_PREFIX.some((p) => t.startsWith(p))) return t;
@@ -433,6 +434,7 @@ function scanProfanity(raw) {
 
 function capsInfo(raw, skip) {
   const t = stripEmotes(raw)
+    .replace(KICK_OK_RE, "")
     .replace(/https?:\/\/\S+/g, "")
     .split(/\s+/)
     .filter((w) => w && !w.startsWith("@") && !(skip && skip.has(w)))
@@ -512,7 +514,7 @@ class Detector {
       }
       const directed = /@\w/.test(raw) || tokens.some((t) => DIRECT_TOKENS.has(t));
       if (this.opt.profanity) {
-        const sc = scanProfanity(raw);
+        const sc = scanProfanity(raw.replace(KICK_OK_RE, " "));
         gib = sc.gib;
         for (const h of sc.hits) {
           if ((h.cat === "gizli" || h.cat === "mustehcen" || h.cat === "supheli") && this.opt.hidden === false) continue;
@@ -529,7 +531,8 @@ class Detector {
         if (ph) add("tehdit", 3, ph[0].trim());
         else if (vb && directed) add("tehdit", 3, vb[0].trim());
       }
-      if (this.opt.links && LINK_RE.test(raw) && !(KICK_LINK_RE.test(raw) && !/discord|http(?!s:\/\/kick\.com)/i.test(raw.replace(KICK_LINK_RE, "")))) add("link", 2, (raw.match(LINK_RE) || [""])[0]);
+      const noKick = raw.replace(KICK_OK_RE, " ");
+      if (this.opt.links && LINK_RE.test(noKick)) add("link", 2, (noKick.match(LINK_RE) || [""])[0]);
 
       // akrostiş: art arda mesajların ilk harfleri ve tek mesajda kelimelerin ilk harfleri
       if (this.opt.acrostic) {

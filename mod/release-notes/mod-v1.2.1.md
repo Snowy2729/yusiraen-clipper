@@ -1,0 +1,3 @@
+- Kick linkleri (clip, video, kanal) artık **link** sayılmıyor, sohbette serbest
+- Aynı clip linkini tekrar tekrar atmak ya da kısa sürede art arda clip linki atmak yine **spam** olarak yakalanır
+- Clip kodlarının içindeki harfler (ör. clip_01...SIK...) küfür ya da caps sanılmaz
