@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; media-src 'self' blob: https: http:; connect-src 'self' https: http:; worker-src 'self' blob:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self'; img-src 'self' https: data: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; media-src 'self' blob: https: http: file:; connect-src 'self' https: http:; worker-src 'self' blob:">
 <title>Yusiraen Clipper</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -12,6 +12,7 @@
   <nav>
     <button class="tab active" data-view="live">Canlı</button>
     <button class="tab" data-view="sessions">Yayınlar</button>
+    <button class="tab" data-view="stats">İstatistikler</button>
     <button class="tab" data-view="settings">Ayarlar</button>
   </nav>
   <div class="rec-pill hidden" id="recPill"><i></i><span id="recPillText">KAYITTA</span></div>
@@ -96,6 +97,109 @@
     </div>
   </section>
 
+  <!-- ============ STÜDYO ============ -->
+  <section class="view" id="view-studio">
+    <div class="st-head">
+      <button class="btn ghost" id="stBack">← Yayına dön</button>
+      <div class="st-title"><h2 id="stTitle">Stüdyo</h2><div class="muted" id="stSub"></div></div>
+      <span class="muted" id="stSaved"></span>
+      <button class="btn ghost danger-text small" id="stReset" title="Kaynak klibi ve düzenlemeleri sil, baştan başla">Baştan başla</button>
+    </div>
+    <div class="st-loading hidden" id="stLoading"><div class="bar"><i id="stLoadBar"></i></div><span id="stLoadText">Hazırlanıyor...</span></div>
+    <div class="st-grid hidden" id="stGrid">
+      <div class="st-left">
+        <div class="st-src" id="stSrc">
+          <video id="stVideo" preload="auto"></video>
+          <div class="rect cam hidden" id="rCam"><span>KAMERA</span><i class="rz"></i></div>
+          <div class="rect game hidden" id="rGame"><span>OYUN</span><i class="rz"></i></div>
+          <div class="rect crop hidden" id="rCrop"><span>KADRAJ</span></div>
+        </div>
+        <div class="st-track" id="stTrack"><div class="pv-sel" id="stSel"><i class="h l" id="stHL"></i><i class="h r" id="stHR"></i></div><div class="pv-head-line" id="stPlayhead"></div></div>
+        <div class="st-trow">
+          <button class="btn small" id="stPlay">▶ Oynat</button>
+          <span class="mono" id="stTime">0:00</span>
+          <span style="flex:1"></span>
+          <span class="muted">Klip:</span><b class="mono" id="stLen"></b>
+          <button class="btn small" id="stSetIn">⏵ Başlangıç burası</button>
+          <button class="btn small" id="stSetOut">⏹ Bitiş burası</button>
+        </div>
+        <div class="muted small-note" id="stRectNote"></div>
+      </div>
+      <div class="st-right">
+        <div class="st-canvas-wrap"><canvas id="stCanvas"></canvas></div>
+        <div class="st-tabs">
+          <button class="st-tab on" data-t="format">Format</button>
+          <button class="st-tab" data-t="subs">Altyazı</button>
+          <button class="st-tab" data-t="text">Yazılar</button>
+          <button class="st-tab" data-t="share">Paylaş</button>
+        </div>
+        <div class="st-panel" id="tp-format">
+          <div class="layouts">
+            <button class="lay" data-l="bulanik"><i class="ic ic-blur"></i>Bulanık arka plan</button>
+            <button class="lay" data-l="bolunmus"><i class="ic ic-split"></i>Kamera + oyun</button>
+            <button class="lay" data-l="kirp"><i class="ic ic-crop"></i>Ortadan kırp</button>
+            <button class="lay" data-l="yatay"><i class="ic ic-wide"></i>Yatay 16:9</button>
+          </div>
+          <div class="fld hidden" id="fSplit"><span>Kamera alanı yüksekliği</span><input type="range" id="stSplit" min="0.25" max="0.55" step="0.01"></div>
+          <div class="muted small-note" id="fHelp"></div>
+        </div>
+        <div class="st-panel hidden" id="tp-subs">
+          <div id="subEmpty">
+            <p class="muted">Klipteki konuşma bilgisayarında yazıya dökülür (ücretsiz, internete yüklenmez). Sonra kelimeleri düzeltebilirsin.</p>
+            <button class="btn primary" id="stTranscribe">🎙 Otomatik altyazı oluştur</button>
+            <div class="muted small-note" id="stModelNote"></div>
+          </div>
+          <div id="subEdit" class="hidden">
+            <div class="opts">
+              <div class="seg" id="sStyle"><button data-v="montajer">Sarı (Montajer)</button><button data-v="beyaz">Beyaz</button><button data-v="yusiraen">Kırmızı kontur</button></div>
+              <div class="seg" id="sPos"><button data-v="ust">Üst</button><button data-v="orta">Orta</button><button data-v="alt">Alt</button></div>
+            </div>
+            <div class="opts">
+              <label class="fld inline"><span>Boyut</span><input type="range" id="sSize" min="60" max="160" step="5"></label>
+              <label class="fld inline"><span>Kelime/satır</span><select id="sWords"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option></select></label>
+              <label class="check"><input type="checkbox" id="sUpper"> BÜYÜK HARF</label>
+            </div>
+            <div class="sub-list" id="subList"></div>
+            <div class="row" style="margin-top:8px"><button class="btn small" id="subAdd">+ Bu ana satır ekle</button><span style="flex:1"></span><button class="btn small ghost" id="subRedo">Yeniden oluştur</button></div>
+          </div>
+        </div>
+        <div class="st-panel hidden" id="tp-text">
+          <label class="fld"><span>Üst yazı (kancayı at, izleyici kaydırmasın)</span><div class="row"><input id="stHook" placeholder="ÖRN: MERT ABİ ÇILDIRDI 😂" spellcheck="false"><button class="btn small" id="stHookSuggest">Öner</button></div></label>
+          <label class="check"><input type="checkbox" id="stWm"> Filigran</label>
+          <label class="fld"><input id="stWmText" placeholder="@yusiraen" spellcheck="false"></label>
+          <p class="muted small-note">Not: Emojiler son videoda tek renk görünür.</p>
+        </div>
+        <div class="st-panel hidden" id="tp-share">
+          <button class="btn primary big wide" id="stExport">🎬 Videoyu oluştur</button>
+          <div class="progress hidden" id="stExpProg"><div class="bar"><i id="stExpBar"></i></div><span id="stExpText"></span></div>
+          <div class="exp-done hidden" id="stExpDone"><span id="stExpFile" class="muted"></span><button class="btn small" id="stShowFile">Klasörde göster</button></div>
+          <div class="yt-box">
+            <div class="yt-title">▶ YouTube'a yükle</div>
+            <div id="ytNo" class="muted">YouTube hesabın bağlı değil. <a href="#" id="ytGoSettings">Ayarlar'dan bağla</a>.</div>
+            <div id="ytYes" class="hidden">
+              <label class="fld"><span>Başlık</span><input id="ytTitle" maxlength="100" spellcheck="false"></label>
+              <div class="chips left" id="ytTitleSug"></div>
+              <label class="fld"><span>Açıklama</span><textarea id="ytDesc" rows="5" spellcheck="false"></textarea></label>
+              <label class="fld"><span>Etiketler (virgülle)</span><input id="ytTags" spellcheck="false"></label>
+              <div class="row">
+                <select id="ytPrivacy"><option value="private">Gizli</option><option value="unlisted">Liste dışı</option><option value="public">Herkese açık</option></select>
+                <button class="btn primary" id="ytUpload">YouTube'a yükle</button>
+              </div>
+              <div class="progress hidden" id="ytProg"><div class="bar"><i id="ytBar"></i></div><span id="ytProgText"></span></div>
+              <div class="muted small-note" id="ytNote">Google'ın denetiminden geçene kadar uygulamadan yüklenen videolar <b>gizli</b> kalır. Denetim başvurusu yapılacak.</div>
+              <div id="ytDone"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ İSTATİSTİKLER ============ -->
+  <section class="view" id="view-stats">
+    <div class="stats" id="statsBody"></div>
+  </section>
+
   <!-- ============ AYARLAR ============ -->
   <section class="view" id="view-settings">
     <div class="settings">
@@ -129,6 +233,28 @@
           <select id="sVStyle"><option value="bulanik">Arka plan bulanık, görüntü ortada</option><option value="kirp">Ortadan kırp (tam ekran)</option></select></label>
       </div>
       <label class="check"><input type="checkbox" id="sPrecise"> Kesin kesim (yavaş ama kliplerin başı tam saniyesinde başlar)</label>
+      <h3 class="sub">Stüdyo</h3>
+      <div class="grid2">
+        <label class="field"><span>Altyazı kalitesi</span><select id="sWQ"><option value="kaliteli">Kaliteli (model 190 MB, önerilen)</option><option value="hizli">Hızlı (model 60 MB)</option></select></label>
+        <label class="field"><span>Varsayılan düzen</span><select id="sDefLayout"><option value="bulanik">Bulanık arka plan</option><option value="bolunmus">Kamera + oyun</option><option value="kirp">Ortadan kırp</option><option value="yatay">Yatay 16:9</option></select></label>
+      </div>
+      <label class="field"><span>Her videoya eklenecek hashtag'ler</span><input id="sBaseTags" spellcheck="false" placeholder="#yusiraen #rraenee"></label>
+      <h3 class="sub">YouTube bağlantısı</h3>
+      <div class="yt-settings">
+        <div class="row" style="justify-content:space-between"><div id="ytStatusLine" class="muted">Bağlı değil</div><button class="btn small ghost hidden" id="ytDisconnect">Bağlantıyı kes</button></div>
+        <details class="guide"><summary>Nasıl bağlarım? (bir kerelik, ücretsiz, ~5 dakika)</summary>
+          <ol>
+            <li><b>console.cloud.google.com</b> adresine YouTube kanalının olduğu Google hesabıyla gir, üstten <b>Yeni proje</b> oluştur (adı: Yusiraen Clipper).</li>
+            <li>Sol menü → <b>API'ler ve Hizmetler → Kitaplık</b>: <b>YouTube Data API v3</b> ve <b>YouTube Analytics API</b>'yi bulup <b>Etkinleştir</b>.</li>
+            <li><b>OAuth izin ekranı</b> (Google Auth Platform): Kullanıcı türü <b>Harici</b>, uygulama adı Yusiraen Clipper, e-postanı yaz. <b>Kitle / Test kullanıcıları</b> kısmına kendi Gmail'ini ekle.</li>
+            <li>Yayınlama durumunu <b>Üretime gönder</b> (doğrulama gerekmez; yoksa bağlantı 7 günde bir düşer). Girişte "Google bu uygulamayı doğrulamadı" uyarısı çıkarsa <b>Gelişmiş → Devam et</b>.</li>
+            <li><b>Kimlik bilgileri → Kimlik bilgisi oluştur → OAuth istemci kimliği</b>, uygulama türü <b>Masaüstü uygulaması</b>. Çıkan <b>Client ID</b> ve <b>Client Secret</b>'ı aşağıya yapıştır.</li>
+          </ol>
+        </details>
+        <label class="field"><span>Client ID</span><input id="ytCid" spellcheck="false" placeholder="....apps.googleusercontent.com"></label>
+        <label class="field"><span>Client Secret</span><input id="ytSecret" type="password" spellcheck="false"></label>
+        <div class="row end"><span class="muted" id="ytMsg"></span><button class="btn primary" id="ytConnectBtn">Kaydet ve YouTube'u bağla</button></div>
+      </div>
       <h3 class="sub">Arka plan</h3>
       <label class="check"><input type="checkbox" id="sTray"> Pencereyi kapatınca arka planda çalışmaya devam et (saatin yanındaki simge)</label>
       <label class="check"><input type="checkbox" id="sStartup"> Windows açılınca kendiliğinden başlat</label>
@@ -169,5 +295,7 @@
 </div>
 <script src="vendor/hls.min.js"></script>
 <script src="app.js"></script>
+<script src="studio.js"></script>
+<script src="stats.js"></script>
 </body>
 </html>

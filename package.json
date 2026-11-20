@@ -1,7 +1,7 @@
 {
   "name": "yusiraen-clipper",
   "productName": "Yusiraen Clipper",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Kick yayın sohbetini kaydeder, en iyi anları bulur ve klip alır",
   "author": "Yusiraen",
   "main": "src/main.js",
@@ -32,7 +32,17 @@
       "shortcutName": "Yusiraen Clipper",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "vendor/whisper",
+        "to": "whisper",
+        "filter": [
+          "*.exe",
+          "*.dll"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "ffmpeg-static": "^5.3.0",

@@ -109,4 +109,4 @@ async function makeClips({ source, session, moments, folder, offset = 0, precise
   return { dir, results };
 }
 
-module.exports = { makeClips, makeVertical, ffmpegPath, hms };
+module.exports = { makeClips, makeVertical, cutOne, ffmpegPath, hms };

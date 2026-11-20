@@ -72,6 +72,8 @@ function showView(v) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === v));
   document.querySelectorAll(".view").forEach((s) => s.classList.toggle("active", s.id === "view-" + v));
   if (v === "sessions") renderSessions();
+  if (v === "stats") renderStats();
+  if (v === "settings") fillYtSettings();
 }
 document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showView(t.dataset.view)));
 
@@ -385,7 +387,7 @@ function renderDetail() {
       <div><div class="tm" data-c="${hms(m.vodPeak ?? m.peak)}">${hms(m.vodPeak ?? m.peak)}</div><div class="rg">${hms(vs(m))} → ${hms(ve(m))}${m.adjStart != null ? '<span class="adj-mark" title="Elle ayarlandı">✎</span>' : ""}${m.part ? ` · ${m.part + 1}. kısım` : ""}</div></div>
       <div><span class="ty">${TYPE[m.type] || m.type}${m.keyword ? ": " + esc(m.keyword) : ""}</span>${(m.tags || []).filter((t) => t !== m.keyword).map((t) => `<span class="tag">🏷 ${esc(t)}</span>`).join("")}<span class="sc">puan ${m.score} · ${m.count} mesaj</span>
         <div class="samples">${m.samples.map((x) => `<span>${esc(x)}</span>`).join("")}</div></div>
-      <button class="btn small pvb" data-pv="${m.rank}">▶ Önizle</button>
+      <div class="pvb" style="display:flex;flex-direction:column;gap:6px"><button class="btn small" data-pv="${m.rank}">▶ Önizle</button><button class="btn small primary" data-ed="${m.rank}">✂ Düzenle${(d.editedRanks || []).includes(m.rank) ? " ✎" : ""}</button></div>
     </div>`
       )
       .join("")}
@@ -406,6 +408,7 @@ function renderDetail() {
     el.onclick = (e) => {
       if (e.target.classList.contains("tm")) return copy(e.target.dataset.c);
       if (e.target.dataset.pv) return openPreview(Number(e.target.dataset.pv));
+      if (e.target.dataset.ed) return openStudio(detailId, Number(e.target.dataset.ed));
       const r = Number(el.dataset.r);
       sel.has(r) ? sel.delete(r) : sel.add(r);
       el.classList.toggle("on", sel.has(r));
@@ -647,6 +650,9 @@ function fillSettings() {
   $("sTray").checked = !!settings.closeToTray;
   $("sStartup").checked = !!settings.startWithWindows;
   $("sAuto").checked = !!settings.autoConnect;
+  $("sWQ").value = settings.whisperQuality || "kaliteli";
+  $("sDefLayout").value = settings.defaultLayout || "bulanik";
+  $("sBaseTags").value = (settings.baseTags || []).join(" ");
   $("sDelay").value = settings.chatDelay;
   $("sOffset").value = settings.offset;
   $("sPrecise").checked = !!settings.precise;
@@ -670,6 +676,9 @@ $("saveBtn").onclick = async () => {
     closeToTray: $("sTray").checked,
     startWithWindows: $("sStartup").checked,
     autoConnect: $("sAuto").checked,
+    whisperQuality: $("sWQ").value,
+    defaultLayout: $("sDefLayout").value,
+    baseTags: $("sBaseTags").value.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).map((t) => (t.startsWith("#") ? t : "#" + t)),
     chatDelay: n("sDelay", 8),
     offset: n("sOffset", 0),
     precise: $("sPrecise").checked,

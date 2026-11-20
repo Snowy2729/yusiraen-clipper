@@ -6,6 +6,11 @@ const { Recorder } = require("./recorder");
 const kick = require("./kick");
 const { analyze } = require("./analyzer");
 const { makeClips } = require("./clipper");
+const editor = require("./editor");
+const whisper = require("./whisper");
+const titles = require("./titles");
+const { YouTube } = require("./youtube");
+const { pathToFileURL } = require("url");
 
 app.setAppUserModelId("com.yusiraen.clipper");
 if (process.env.CLIPPER_DATA) app.setPath("userData", process.env.CLIPPER_DATA);
@@ -15,6 +20,8 @@ let win = null;
 let store = null;
 let clipping = false;
 let tray = null;
+let projects = null;
+let yt = null;
 const startHidden = process.argv.includes("--hidden");
 
 function send(ch, data) {
@@ -120,6 +127,8 @@ app.on("second-instance", () => showWindow());
 
 app.whenReady().then(() => {
   store = new Store(app.getPath("userData"), path.join(app.getPath("videos"), "Yusiraen Clipper"));
+  projects = new editor.Projects(app.getPath("userData"));
+  yt = new YouTube(app.getPath("userData"));
   // Önizleme için: Kick'in video sunucusundan gelen yanıtlara uygulamanın erişmesine izin ver
   eSession.defaultSession.webRequest.onHeadersReceived((d, cb) => {
     const h = d.responseHeaders || {};
@@ -413,12 +422,14 @@ ipcMain.handle("sessions:list", () => store.index.sessions.map(sessionSummary));
 ipcMain.handle("sessions:get", (_, id) => {
   const s = store.get(id);
   if (!s) return null;
-  return { ...sessionSummary(s), parts: s.parts, analysis: s.analysis };
+  const editedRanks = s.analysis ? s.analysis.moments.filter((m) => projects.exists(id, m.rank)).map((m) => m.rank) : [];
+  return { ...sessionSummary(s), parts: s.parts, analysis: s.analysis, editedRanks };
 });
 
 ipcMain.handle("sessions:delete", (_, id) => {
   if (activeForSession(id)) return { error: "Bu yayın şu an kaydediliyor." };
   store.remove(id);
+  try { projects.remove(id); } catch (_) {}
   send("sessions:changed");
   return { ok: true };
 });
@@ -609,5 +620,186 @@ ipcMain.handle("update:install", async () => {
     return { ok: true };
   } catch (e) {
     return { error: e.message };
+  }
+});
+
+
+// ---------------- Stüdyo (editör) ----------------
+function momentOf(s, rank) {
+  return s && s.analysis && s.analysis.moments.find((m) => m.rank === rank);
+}
+function exportPath(s, m, proj) {
+  const d = new Date(s.startTime || s.recordStart);
+  const p = (n) => String(n).padStart(2, "0");
+  const safe = (x) => String(x || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/\s+/g, " ").trim().slice(0, 60) || "yayin";
+  const dir = path.join(store.settings.clipFolder, safe(s.streamer), `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${safe(s.title)}`);
+  const kind = proj.layout === "yatay" ? "yatay" : "dikey";
+  return path.join(dir, `${p(m.rank)}_${editor.hms(m.vodPeak ?? m.peak, "-")}_duzenlenmis_${kind}.mp4`);
+}
+function editorPayload(s, m, proj) {
+  return {
+    project: proj,
+    baseUrl: proj.baseFile ? pathToFileURL(proj.baseFile).href : null,
+    session: { id: s.id, streamer: s.streamer, slug: s.slug, title: s.title },
+    moment: m,
+    whisper: whisper.status(store.settings.whisperQuality),
+    exportUrl: proj.lastExport && fs.existsSync(proj.lastExport) ? pathToFileURL(proj.lastExport).href : null,
+  };
+}
+
+ipcMain.handle("editor:open", async (_, { sessionId, rank, vodUrl }) => {
+  const s = store.get(sessionId);
+  const m = momentOf(s, rank);
+  if (!m) return { error: "An bulunamadı." };
+  let proj = projects.load(sessionId, rank);
+  if (proj && proj.baseFile && fs.existsSync(proj.baseFile)) return editorPayload(s, m, proj);
+  // kaynak klibi hazırla
+  const parts = s.parts && s.parts.length ? s.parts : [{ livestreamId: s.livestreamId, startTime: s.startTime }];
+  const pi = m.part || 0;
+  s.vodCache = s.vodCache || {};
+  let vod = !vodUrl && s.vodCache[pi];
+  try {
+    if (!vod) vod = await kick.findVod(s.slug, (parts[pi] || parts[0]).livestreamId, (parts[pi] || parts[0]).startTime, vodUrl || null);
+  } catch (e) {
+    return { error: "VOD bulunamadı: " + e.message, needVodUrl: true };
+  }
+  if (!vod) return { error: "Bu yayının kaydı (VOD) Kick'te henüz yok. Yayın bittikten sonra tekrar dene ya da VOD linkini yapıştır.", needVodUrl: true };
+  s.vodCache[pi] = vod;
+  store.update(sessionId, {});
+  const vs = m.adjStart != null ? m.adjStart : m.vodStart ?? m.start;
+  const ve = m.adjStart != null ? m.adjEnd : m.vodEnd ?? m.end;
+  send("editor:progress", { phase: "kaynak", frac: 0 });
+  try {
+    proj = await editor.createProject(projects, {
+      sessionId,
+      rank,
+      source: vod.source,
+      vodStart: vs + (m.adjStart != null ? 0 : Number(store.settings.offset) || 0),
+      vodEnd: ve + (m.adjStart != null ? 0 : Number(store.settings.offset) || 0),
+      defaults: { layout: store.settings.defaultLayout || "bulanik", subStyle: store.settings.defaultSubStyle || "montajer" },
+      onProgress: (f) => send("editor:progress", { phase: "kaynak", frac: f }),
+    });
+  } catch (e) {
+    return { error: e.message };
+  }
+  return editorPayload(s, m, proj);
+});
+
+ipcMain.handle("editor:save", (_, { sessionId, rank, project }) => {
+  const cur = projects.load(sessionId, rank) || {};
+  const merged = { ...cur, ...project, baseFile: cur.baseFile, baseStart: cur.baseStart, baseDur: cur.baseDur };
+  projects.save(sessionId, rank, merged);
+  return { ok: true };
+});
+
+ipcMain.handle("editor:reset", (_, { sessionId, rank }) => {
+  const cur = projects.load(sessionId, rank);
+  if (cur && cur.baseFile) fs.rmSync(cur.baseFile, { force: true });
+  fs.rmSync(projects.file(sessionId, rank), { force: true });
+  return { ok: true };
+});
+
+let transcribing = false;
+ipcMain.handle("editor:transcribe", async (_, { sessionId, rank, maxWords }) => {
+  if (transcribing) return { error: "Zaten bir altyazı hazırlanıyor." };
+  const proj = projects.load(sessionId, rank);
+  if (!proj) return { error: "Proje bulunamadı." };
+  transcribing = true;
+  try {
+    const words = await whisper.transcribe(proj.baseFile, { quality: store.settings.whisperQuality, onProgress: (p) => send("editor:progress", p) });
+    const subs = whisper.groupWords(words, maxWords || proj.subWords || 3);
+    proj.words = words;
+    proj.subs = subs;
+    projects.save(sessionId, rank, proj);
+    return { ok: true, words, subs };
+  } catch (e) {
+    return { error: "Altyazı oluşturulamadı: " + e.message };
+  } finally {
+    transcribing = false;
+  }
+});
+
+ipcMain.handle("editor:regroup", (_, { words, maxWords }) => whisper.groupWords(words || [], maxWords || 3));
+
+let rendering = false;
+ipcMain.handle("editor:export", async (_, { sessionId, rank, project }) => {
+  if (rendering) return { error: "Zaten bir video hazırlanıyor." };
+  const s = store.get(sessionId);
+  const m = momentOf(s, rank);
+  const cur = projects.load(sessionId, rank);
+  if (!cur || !m) return { error: "Proje bulunamadı." };
+  const proj = { ...cur, ...project, baseFile: cur.baseFile };
+  const out = exportPath(s, m, proj);
+  rendering = true;
+  try {
+    await editor.render(proj, out, (f) => send("editor:progress", { phase: "render", frac: f }));
+    proj.lastExport = out;
+    proj.lastExportAt = new Date().toISOString();
+    projects.save(sessionId, rank, proj);
+    return { ok: true, file: out, url: pathToFileURL(out).href };
+  } catch (e) {
+    return { error: e.message };
+  } finally {
+    rendering = false;
+  }
+});
+
+ipcMain.handle("editor:suggest", (_, { sessionId, rank, project }) => {
+  const s = store.get(sessionId);
+  const m = momentOf(s, rank);
+  return titles.suggest({
+    streamer: s && s.streamer,
+    slug: s && s.slug,
+    streamTitle: s && s.title,
+    moment: m,
+    subs: (project && project.subs) || [],
+    vertical: project ? project.layout !== "yatay" : true,
+    baseTags: store.settings.baseTags || [],
+  });
+});
+
+ipcMain.handle("shell:showItem", (_, p) => p && fs.existsSync(p) && shell.showItemInFolder(p));
+ipcMain.handle("whisper:status", () => whisper.status(store.settings.whisperQuality));
+
+// ---------------- YouTube ----------------
+ipcMain.handle("yt:status", () => yt.status());
+ipcMain.handle("yt:setClient", (_, { clientId, clientSecret }) => {
+  yt.setClient(clientId, clientSecret);
+  return yt.status();
+});
+ipcMain.handle("yt:connect", async () => {
+  try {
+    return await yt.connect();
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+ipcMain.handle("yt:disconnect", () => yt.disconnect());
+ipcMain.handle("yt:stats", async () => {
+  try {
+    const r = await yt.stats();
+    store.saveSettings({ ytStatsCache: r });
+    return r;
+  } catch (e) {
+    return { error: e.message, cache: store.settings.ytStatsCache || null };
+  }
+});
+let uploading = false;
+ipcMain.handle("yt:upload", async (_, { sessionId, rank, file, meta }) => {
+  if (uploading) return { error: "Zaten bir video yükleniyor." };
+  if (!file || !fs.existsSync(file)) return { error: "Önce videoyu dışa aktar." };
+  uploading = true;
+  try {
+    const r = await yt.upload(file, meta, (f) => send("yt:progress", f));
+    const proj = projects.load(sessionId, rank);
+    if (proj) {
+      proj.uploads = [...(proj.uploads || []), { ...r, at: new Date().toISOString(), title: meta.title }];
+      projects.save(sessionId, rank, proj);
+    }
+    return { ok: true, ...r };
+  } catch (e) {
+    return { error: e.message };
+  } finally {
+    uploading = false;
   }
 });

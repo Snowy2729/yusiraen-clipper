@@ -40,9 +40,39 @@ jobs:
         if: steps.ver.outputs.skip == 'false'
         run: npm ci
 
+      - name: Altyazı motoru önbelleği
+        if: steps.ver.outputs.skip == 'false'
+        id: wcache
+        uses: actions/cache@v4
+        with:
+          path: vendor/whisper
+          key: whisper-cpp-v1.9.5-win64-static-1
+
+      - name: Altyazı motorunu derle (whisper.cpp)
+        if: steps.ver.outputs.skip == 'false' && steps.wcache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp wcpp
+          cmake -S wcpp -B wcpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF -DGGML_NATIVE=OFF \
+            -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          cmake --build wcpp/build --config Release --target whisper-cli -j 4
+          mkdir -p vendor/whisper
+          EXE=$(find wcpp/build -name whisper-cli.exe | head -1)
+          cp "$EXE" vendor/whisper/
+          ls -la vendor/whisper
+
       - name: Uygulamayı paketle
         if: steps.ver.outputs.skip == 'false'
         run: npx electron-builder --win dir --x64 --publish never
+
+      - name: Paket içeriğini kontrol et
+        if: steps.ver.outputs.skip == 'false'
+        shell: bash
+        run: |
+          ls -la dist/win-unpacked/resources/whisper
+          test -f dist/win-unpacked/resources/whisper/whisper-cli.exe
+          dist/win-unpacked/resources/whisper/whisper-cli.exe --help 2>&1 | head -3 || true
 
       - name: Kurulum dosyasını oluştur (NSIS)
         if: steps.ver.outputs.skip == 'false'
