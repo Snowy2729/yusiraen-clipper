@@ -5,7 +5,7 @@ name: Release
 on:
   push:
     branches: [main]
-    paths-ignore: ["mod/**", ".github/workflows/mod-release.yml"]
+    paths-ignore: ["mod/**", ".github/workflows/mod-release.yml", "docs/**"]
   workflow_dispatch:
 
 permissions:
