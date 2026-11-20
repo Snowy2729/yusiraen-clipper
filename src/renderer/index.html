@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>Yusiraen Clipper</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">YUSIRAEN <span>CLIPPER</span></div>
+  <nav>
+    <button class="tab active" data-view="live">Canlı</button>
+    <button class="tab" data-view="sessions">Yayınlar</button>
+    <button class="tab" data-view="settings">Ayarlar</button>
+  </nav>
+  <div class="rec-pill hidden" id="recPill"><i></i><span id="recPillText">KAYITTA</span></div>
+  <img class="logo" src="../../assets/logo.png" alt="">
+</header>
+
+<div class="update-bar hidden" id="updateBar">
+  <span id="updateText"></span>
+  <button class="btn ghost small" id="updateNotes">Yenilikler</button>
+  <button class="btn primary small" id="updateNow">Şimdi güncelle</button>
+  <button class="btn ghost small" id="updateLater">Sonra</button>
+</div>
+<main>
+  <!-- ============ CANLI ============ -->
+  <section class="view active" id="view-live">
+    <div class="live-tabs hidden" id="liveTabs"></div>
+    <div class="connect-card" id="connectCard">
+      <img class="big-logo" src="../../assets/logo.png" alt="">
+      <h1>Yayına Bağlan</h1>
+      <p class="muted">Takip listendeki kanallardan hangisi yayındaysa ona bağlanır.<br>Belirli bir kanal için adını yazabilirsin.</p>
+      <div class="connect-row">
+        <input id="slugInput" placeholder="Kanal adı (boş bırak = takip listesi)" spellcheck="false">
+        <button class="btn primary big" id="connectBtn">Yayına Bağlan</button>
+      </div>
+      <div class="chips" id="followChips"></div>
+      <div class="status-msg" id="connectMsg"></div>
+    </div>
+
+    <div class="live-panel hidden" id="livePanel">
+      <div class="live-head">
+        <div class="avatar" id="liveAvatar"></div>
+        <div class="live-info">
+          <div class="live-name"><span id="liveName"></span><span class="live-dot">● CANLI</span></div>
+          <div class="live-title" id="liveTitle"></div>
+          <div class="muted" id="liveMeta"></div>
+        </div>
+        <button class="btn danger big" id="stopBtn">Yayın Bitti</button>
+      </div>
+      <div class="merged-note hidden" id="mergedNote">Bu kayıt önceki kaydın devamı olarak birleştiriliyor.</div>
+      <div class="tiles">
+        <div class="tile"><b id="tMsgs">0</b><small>kaydedilen mesaj</small></div>
+        <div class="tile"><b id="tRate">0</b><small>mesaj / dakika</small></div>
+        <div class="tile"><b id="tUptime">0:00:00</b><small>yayın süresi</small></div>
+        <div class="tile"><b id="tRec">0:00:00</b><small>kayıt süresi</small></div>
+      </div>
+      <div class="chat-box">
+        <div class="box-title">Canlı sohbet <span class="muted" id="connStatus"></span></div>
+        <div id="chatFeed"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ YAYINLAR ============ -->
+  <section class="view" id="view-sessions">
+    <div class="sessions-layout" id="sessionsLayout">
+      <aside class="streamers">
+        <div class="col-title">Yayıncılar</div>
+        <div id="streamerList"></div>
+      </aside>
+      <div class="streams">
+        <div class="col-title" id="streamsTitle">Bir yayıncı seç</div>
+        <div id="streamList"></div>
+      </div>
+    </div>
+
+    <div class="detail hidden" id="detail">
+      <div class="detail-head">
+        <button class="btn ghost" id="backBtn">← Yayınlar</button>
+        <div class="detail-title">
+          <h2 id="dTitle"></h2>
+          <div class="muted" id="dMeta"></div>
+        </div>
+        <div class="detail-actions">
+          <button class="btn primary" id="analyzeBtn">Analiz Et</button>
+          <button class="btn" id="clipBtn" disabled>Seçilenleri Klip Al</button>
+          <button class="btn ghost" id="openClipsBtn">Klip klasörü</button>
+          <button class="btn ghost danger-text" id="deleteBtn">Kaydı Sil</button>
+        </div>
+      </div>
+      <div class="progress hidden" id="clipProgress"><div class="bar"><i id="clipBar"></i></div><span id="clipText"></span></div>
+      <div id="detailBody"></div>
+    </div>
+  </section>
+
+  <!-- ============ AYARLAR ============ -->
+  <section class="view" id="view-settings">
+    <div class="settings">
+      <h2>Ayarlar</h2>
+      <label class="field">
+        <span>Takip edilen kanallar</span>
+        <input id="sChannels" spellcheck="false" placeholder="rraenee, elraenn">
+        <small>Virgülle ayır. "Yayına Bağlan" bu kanallardan yayında olanı bulur.</small>
+      </label>
+      <label class="field">
+        <span>Kliplerin kaydedileceği klasör</span>
+        <div class="row"><input id="sFolder" readonly><button class="btn" id="pickFolderBtn">Gözat</button></div>
+      </label>
+      <div class="grid2">
+        <label class="field"><span>Klip: andan önce (sn)</span><input type="number" id="sBefore" min="5" max="600"></label>
+        <label class="field"><span>Klip: andan sonra (sn)</span><input type="number" id="sAfter" min="0" max="300"></label>
+        <label class="field"><span>Analizde bulunacak an sayısı</span><input type="number" id="sCount" min="5" max="100"></label>
+        <label class="field"><span>Otomatik seçilecek en iyi an</span><input type="number" id="sAuto" min="0" max="100"></label>
+        <label class="field"><span>Sohbet gecikmesi (sn)</span><input type="number" id="sDelay" min="0" max="60"><small>Sohbet olaya kaç saniye sonra tepki veriyor.</small></label>
+        <label class="field"><span>Zaman kaydırma (sn)</span><input type="number" id="sOffset" min="-600" max="600"><small>Klipler hep erken/geç kalıyorsa düzelt.</small></label>
+      </div>
+      <label class="check"><input type="checkbox" id="sPrecise"> Kesin kesim (yavaş ama kliplerin başı tam saniyesinde başlar)</label>
+      <div class="row end"><span class="muted" id="saveMsg"></span><button class="btn primary" id="saveBtn">Kaydet</button></div>
+      <div class="version-box">
+        <div><b>Yusiraen Clipper</b> <span class="muted" id="appVersion"></span><br><span class="muted" id="updateMsg">Uygulama yeni sürümleri kendisi kontrol eder.</span></div>
+        <button class="btn" id="checkUpdateBtn">Güncellemeleri denetle</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-bg hidden" id="modal"><div class="modal"><h3 id="mTitle"></h3><div id="mBody"></div><div class="m-btns" id="mBtns"></div></div></div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

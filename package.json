@@ -1,0 +1,45 @@
+{
+  "name": "yusiraen-clipper",
+  "productName": "Yusiraen Clipper",
+  "version": "1.1.0",
+  "description": "Kick yayın sohbetini kaydeder, en iyi anları bulur ve klip alır",
+  "author": "Yusiraen",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "build": {
+    "appId": "com.yusiraen.clipper",
+    "productName": "Yusiraen Clipper",
+    "icon": "build/icon.ico",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Yusiraen Clipper",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    }
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  }
+}

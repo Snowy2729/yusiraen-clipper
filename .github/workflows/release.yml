@@ -1,0 +1,58 @@
+name: Release
+
+# "v1.2.3" biçiminde bir etiket gönderilince Windows kurulumunu derler ve GitHub Release olarak yayınlar.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Sürüm etiketle uyumlu mu?
+        shell: bash
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then echo "package.json $PKG ama etiket $GITHUB_REF_NAME"; exit 1; fi
+
+      - name: Uygulamayı paketle
+        run: npx electron-builder --win dir --x64 --publish never
+
+      - name: Kurulum dosyasını oluştur (NSIS)
+        shell: pwsh
+        run: |
+          $ver = node -p "require('./package.json').version"
+          $nsi = Get-Content build/installer.nsi -Raw
+          $nsi = $nsi -replace '!define VER "[^"]*"', "!define VER `"$ver`""
+          $nsi = $nsi -replace 'VIProductVersion "[^"]*"', "VIProductVersion `"$ver.0`""
+          Set-Content build/installer.nsi $nsi -Encoding utf8BOM
+          $mk = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $mk)) { choco install nsis -y --no-progress; $mk = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          Push-Location build
+          & $mk /INPUTCHARSET UTF8 /V2 installer.nsi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Pop-Location
+          Move-Item "dist/Yusiraen Clipper Kurulum.exe" "dist/Yusiraen-Clipper-Kurulum.exe"
+
+      - name: GitHub Release yayınla
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="release-notes/${GITHUB_REF_NAME}.md"
+          [ -f "$NOTES" ] || echo "Yusiraen Clipper ${GITHUB_REF_NAME}" > "$NOTES"
+          gh release create "$GITHUB_REF_NAME" "dist/Yusiraen-Clipper-Kurulum.exe" \
+            --title "Yusiraen Clipper ${GITHUB_REF_NAME}" --notes-file "$NOTES"
