@@ -1,9 +1,11 @@
 name: Release
 
-# "v1.2.3" biçiminde bir etiket gönderilince Windows kurulumunu derler ve GitHub Release olarak yayınlar.
+# package.json'daki sürüm numarası değişip main'e gönderilince, o sürüm henüz yayınlanmamışsa
+# Windows kurulumunu derler ve GitHub Release olarak yayınlar.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,24 +16,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Bu sürüm zaten yayınlandı mı?
+        id: ver
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="v$(node -p "require('./package.json').version")"
+          echo "tag=$VER" >> "$GITHUB_OUTPUT"
+          if gh release view "$VER" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "$VER zaten yayınlanmış, atlanıyor."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.ver.outputs.skip == 'false'
         with:
           node-version: 22
           cache: npm
 
       - name: Bağımlılıklar
+        if: steps.ver.outputs.skip == 'false'
         run: npm ci
 
-      - name: Sürüm etiketle uyumlu mu?
-        shell: bash
-        run: |
-          PKG="v$(node -p "require('./package.json').version")"
-          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then echo "package.json $PKG ama etiket $GITHUB_REF_NAME"; exit 1; fi
-
       - name: Uygulamayı paketle
+        if: steps.ver.outputs.skip == 'false'
         run: npx electron-builder --win dir --x64 --publish never
 
       - name: Kurulum dosyasını oluştur (NSIS)
+        if: steps.ver.outputs.skip == 'false'
         shell: pwsh
         run: |
           $ver = node -p "require('./package.json').version"
@@ -48,11 +62,13 @@ jobs:
           Move-Item "dist/Yusiraen Clipper Kurulum.exe" "dist/Yusiraen-Clipper-Kurulum.exe"
 
       - name: GitHub Release yayınla
+        if: steps.ver.outputs.skip == 'false'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="release-notes/${GITHUB_REF_NAME}.md"
-          [ -f "$NOTES" ] || echo "Yusiraen Clipper ${GITHUB_REF_NAME}" > "$NOTES"
-          gh release create "$GITHUB_REF_NAME" "dist/Yusiraen-Clipper-Kurulum.exe" \
-            --title "Yusiraen Clipper ${GITHUB_REF_NAME}" --notes-file "$NOTES"
+          TAG="${{ steps.ver.outputs.tag }}"
+          NOTES="release-notes/${TAG}.md"
+          [ -f "$NOTES" ] || echo "Yusiraen Clipper ${TAG}" > "$NOTES"
+          gh release create "$TAG" "dist/Yusiraen-Clipper-Kurulum.exe" --target "$GITHUB_SHA" \
+            --title "Yusiraen Clipper ${TAG}" --notes-file "$NOTES"
