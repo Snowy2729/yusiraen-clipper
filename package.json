@@ -1,7 +1,7 @@
 {
   "name": "yusiraen-clipper",
   "productName": "Yusiraen Clipper",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Kick yayın sohbetini kaydeder, en iyi anları bulur ve klip alır",
   "author": "Yusiraen",
   "main": "src/main.js",

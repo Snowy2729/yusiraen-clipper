@@ -166,3 +166,31 @@ input:focus { border-color: var(--red); }
 .update-bar #updateText { flex: 1; }
 .btn.small { padding: 5px 12px; font-size: 13px; }
 .version-box { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 30px; padding: 16px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+
+select { background: #0e0e0e; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; outline: none; }
+.settings h3.sub { margin: 26px 0 8px; font-size: 15px; }
+.check + .check { margin-top: 8px; }
+/* filtre ve etiketler */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.filters .chip.on { background: var(--red); color: #fff; border-color: var(--red); }
+.tag { display: inline-block; font-size: 11.5px; font-weight: 700; background: #1d1a2a; color: #b9a8ff; border-radius: 4px; padding: 1px 7px; margin-left: 6px; }
+.moment { grid-template-columns: 26px 40px 150px 1fr auto; }
+.moment .pvb { align-self: center; }
+.adj-mark { color: #ffb36b; margin-left: 4px; }
+/* önizleme */
+.pv { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--red2); border-radius: 14px; padding: 16px 20px 18px; width: min(980px, 94vw); max-height: 96vh; overflow: auto; }
+.pv-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.pv-head h3 { margin: 0; font-size: 17px; }
+.pv-video { position: relative; background: #000; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; }
+.pv-video video { width: 100%; height: 100%; display: block; }
+.pv-msg { position: absolute; inset: 0; display: grid; place-items: center; color: #ddd; text-align: center; padding: 30px; pointer-events: none; }
+.pv-track { position: relative; height: 34px; background: #1a1a1a; border-radius: 6px; margin-top: 14px; cursor: pointer; }
+.pv-sel { position: absolute; top: 0; bottom: 0; background: rgba(163, 20, 27, .45); border: 2px solid var(--red2); border-radius: 6px; }
+.pv-sel .h { position: absolute; top: -2px; bottom: -2px; width: 12px; background: var(--red2); cursor: ew-resize; }
+.pv-sel .h.l { left: -7px; border-radius: 4px 0 0 4px; } .pv-sel .h.r { right: -7px; border-radius: 0 4px 4px 0; }
+.pv-head-line { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #fff; pointer-events: none; }
+.pv-ticks { display: flex; justify-content: space-between; color: var(--muted); font: 12px Consolas, monospace; margin-top: 4px; }
+.pv-ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+.pv-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #0f0f0f; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.pv-side b { font: 600 16px Consolas, monospace; margin-right: 4px; }
+.pv-foot { display: flex; align-items: center; gap: 8px; margin-top: 14px; }

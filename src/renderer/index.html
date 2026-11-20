@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; media-src 'self' blob: https: http:; connect-src 'self' https: http:; worker-src 'self' blob:">
 <title>Yusiraen Clipper</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -113,11 +113,26 @@
         <label class="field"><span>Klip: andan önce (sn)</span><input type="number" id="sBefore" min="5" max="600"></label>
         <label class="field"><span>Klip: andan sonra (sn)</span><input type="number" id="sAfter" min="0" max="300"></label>
         <label class="field"><span>Analizde bulunacak an sayısı</span><input type="number" id="sCount" min="5" max="100"></label>
-        <label class="field"><span>Otomatik seçilecek en iyi an</span><input type="number" id="sAuto" min="0" max="100"></label>
+        <label class="field"><span>Otomatik seçilecek en iyi an</span><input type="number" id="sAutoSel" min="0" max="100"></label>
         <label class="field"><span>Sohbet gecikmesi (sn)</span><input type="number" id="sDelay" min="0" max="60"><small>Sohbet olaya kaç saniye sonra tepki veriyor.</small></label>
         <label class="field"><span>Zaman kaydırma (sn)</span><input type="number" id="sOffset" min="-600" max="600"><small>Klipler hep erken/geç kalıyorsa düzelt.</small></label>
       </div>
+      <label class="field">
+        <span>İsim / kelime anları</span>
+        <input id="sKeywords" spellcheck="false" placeholder="bedir, tuğkan, nemesis">
+        <small>Virgülle ayır. Bu isimler sohbette patladığında an olarak işaretlenir. Türkçe karakter fark etmez (tuğkan = tugkan).</small>
+      </label>
+      <div class="grid2">
+        <label class="field"><span>Klip formatı</span>
+          <select id="sFormat"><option value="yatay">Yatay (16:9)</option><option value="dikey">Dikey (9:16) — Shorts / Reels / TikTok</option><option value="ikisi">İkisi de</option></select></label>
+        <label class="field"><span>Dikey stil</span>
+          <select id="sVStyle"><option value="bulanik">Arka plan bulanık, görüntü ortada</option><option value="kirp">Ortadan kırp (tam ekran)</option></select></label>
+      </div>
       <label class="check"><input type="checkbox" id="sPrecise"> Kesin kesim (yavaş ama kliplerin başı tam saniyesinde başlar)</label>
+      <h3 class="sub">Arka plan</h3>
+      <label class="check"><input type="checkbox" id="sTray"> Pencereyi kapatınca arka planda çalışmaya devam et (saatin yanındaki simge)</label>
+      <label class="check"><input type="checkbox" id="sStartup"> Windows açılınca kendiliğinden başlat</label>
+      <label class="check"><input type="checkbox" id="sAuto"> Takip listemden biri yayına girince kaydı otomatik başlat</label>
       <div class="row end"><span class="muted" id="saveMsg"></span><button class="btn primary" id="saveBtn">Kaydet</button></div>
       <div class="version-box">
         <div><b>Yusiraen Clipper</b> <span class="muted" id="appVersion"></span><br><span class="muted" id="updateMsg">Uygulama yeni sürümleri kendisi kontrol eder.</span></div>
@@ -129,6 +144,30 @@
 
 <div class="modal-bg hidden" id="modal"><div class="modal"><h3 id="mTitle"></h3><div id="mBody"></div><div class="m-btns" id="mBtns"></div></div></div>
 <div class="toast" id="toast"></div>
+<div class="modal-bg hidden" id="preview">
+  <div class="pv">
+    <div class="pv-head"><h3 id="pvTitle">Önizleme</h3><button class="btn ghost small" id="pvClose">Kapat ✕</button></div>
+    <div class="pv-video"><video id="pvVideo" controls preload="auto"></video><div class="pv-msg" id="pvMsg"></div></div>
+    <div class="pv-track" id="pvTrack"><div class="pv-sel" id="pvSel"><i class="h l" id="pvHL"></i><i class="h r" id="pvHR"></i></div><div class="pv-head-line" id="pvPlayhead"></div></div>
+    <div class="pv-ticks"><span id="pvT0"></span><span id="pvT1"></span></div>
+    <div class="pv-ctl">
+      <div class="pv-side"><span class="muted">Başlangıç</span><b id="pvStart"></b>
+        <button class="btn small" data-adj="s:-1">−1 sn</button><button class="btn small" data-adj="s:1">+1 sn</button>
+        <button class="btn small" id="pvSetStart">⏵ Burası başlangıç</button></div>
+      <div class="pv-side"><span class="muted">Bitiş</span><b id="pvEnd"></b>
+        <button class="btn small" data-adj="e:-1">−1 sn</button><button class="btn small" data-adj="e:1">+1 sn</button>
+        <button class="btn small" id="pvSetEnd">⏹ Burası bitiş</button></div>
+    </div>
+    <div class="pv-foot">
+      <span class="muted" id="pvLen"></span>
+      <span style="flex:1"></span>
+      <button class="btn ghost" id="pvReset">Otomatiğe dön</button>
+      <button class="btn" id="pvPlaySel">▶ Seçimi oynat</button>
+      <button class="btn primary" id="pvSave">Kaydet</button>
+    </div>
+  </div>
+</div>
+<script src="vendor/hls.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

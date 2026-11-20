@@ -323,7 +323,8 @@ api.onSessionsChanged(() => {
 });
 
 // ---------- DETAY ----------
-const TYPE = { gulme: "😂 Gülme", hype: "😮 Şok / Hype", patlama: "🔥 Sohbet patlaması" };
+const TYPE = { gulme: "😂 Gülme", hype: "😮 Şok / Hype", patlama: "🔥 Sohbet patlaması", isim: "🏷 İsim" };
+let momentFilter = "all";
 
 async function openDetail(id) {
   detailId = id;
@@ -357,8 +358,16 @@ function renderDetail() {
   const sel = new Set(a.selected || []);
   $("clipBtn").disabled = !sel.size;
   $("clipBtn").textContent = sel.size ? `Seçilenleri Klip Al (${sel.size})` : "Seçilenleri Klip Al";
-  const ms = [...a.moments];
+  let ms = [...a.moments];
   if (sortBy === "time") ms.sort((x, y) => x.peak - y.peak);
+  const kwList = [...new Set(a.moments.flatMap((m) => m.tags || []))];
+  if (momentFilter !== "all" && !TYPE[momentFilter] && !kwList.includes(momentFilter)) momentFilter = "all";
+  if (momentFilter in TYPE) ms = ms.filter((m) => m.type === momentFilter);
+  else if (momentFilter !== "all") ms = ms.filter((m) => (m.tags || []).includes(momentFilter));
+  const cnt = (f) => a.moments.filter(f).length;
+  const chips = [["all", "Tümü", a.moments.length], ...Object.keys(TYPE).map((t) => [t, TYPE[t], cnt((m) => m.type === t)]).filter((x) => x[2]), ...kwList.map((k) => [k, "🏷 " + k, cnt((m) => (m.tags || []).includes(k))])];
+  const vs = (m) => (m.adjStart != null ? m.adjStart : m.vodStart ?? m.start);
+  const ve = (m) => (m.adjStart != null ? m.adjEnd : m.vodEnd ?? m.end);
   body.innerHTML = `
     <div class="chart"><canvas id="chart"></canvas></div>
     <div class="toolbar">
@@ -366,15 +375,17 @@ function renderDetail() {
       <button class="btn ghost" id="selAll">Tümünü seç</button><button class="btn ghost" id="selNone">Temizle</button>
       <span class="sp"></span><span class="muted">${a.moments.length} an · ${num(a.users)} farklı kişi · zamana tıkla = kopyala</span>
     </div>
+    <div class="filters">${chips.map(([k, l, c]) => `<span class="chip ${momentFilter === k ? "on" : ""}" data-f="${esc(k)}">${esc(l)} <b>${c}</b></span>`).join("")}</div>
     ${a.moments.length ? "" : '<div class="empty">Belirgin bir sohbet patlaması bulunamadı.</div>'}
     ${ms
       .map(
         (m) => `<div class="moment ${sel.has(m.rank) ? "on" : ""}" data-r="${m.rank}">
       <input type="checkbox" ${sel.has(m.rank) ? "checked" : ""}>
       <div class="rk">#${m.rank}</div>
-      <div><div class="tm" data-c="${hms(m.vodPeak ?? m.peak)}">${hms(m.vodPeak ?? m.peak)}</div><div class="rg">${hms(m.vodStart ?? m.start)} → ${hms(m.vodEnd ?? m.end)}${m.part ? ` · ${m.part + 1}. kısım` : ""}</div></div>
-      <div><span class="ty">${TYPE[m.type] || m.type}</span><span class="sc">puan ${m.score} · ${m.count} mesaj</span>
+      <div><div class="tm" data-c="${hms(m.vodPeak ?? m.peak)}">${hms(m.vodPeak ?? m.peak)}</div><div class="rg">${hms(vs(m))} → ${hms(ve(m))}${m.adjStart != null ? '<span class="adj-mark" title="Elle ayarlandı">✎</span>' : ""}${m.part ? ` · ${m.part + 1}. kısım` : ""}</div></div>
+      <div><span class="ty">${TYPE[m.type] || m.type}${m.keyword ? ": " + esc(m.keyword) : ""}</span>${(m.tags || []).filter((t) => t !== m.keyword).map((t) => `<span class="tag">🏷 ${esc(t)}</span>`).join("")}<span class="sc">puan ${m.score} · ${m.count} mesaj</span>
         <div class="samples">${m.samples.map((x) => `<span>${esc(x)}</span>`).join("")}</div></div>
+      <button class="btn small pvb" data-pv="${m.rank}">▶ Önizle</button>
     </div>`
       )
       .join("")}
@@ -382,6 +393,7 @@ function renderDetail() {
       <div class="vod-row"><input id="vodUrl" placeholder="https://kick.com/${esc(d.slug)}/videos/..." spellcheck="false"></div>
     </details>`;
   body.querySelectorAll(".seg button").forEach((b) => (b.onclick = () => ((sortBy = b.dataset.s), renderDetail())));
+  body.querySelectorAll(".filters .chip").forEach((c) => (c.onclick = () => ((momentFilter = c.dataset.f), renderDetail())));
   const saveSel = () => {
     a.selected = [...sel];
     api.sessionSelect({ id: d.id, selected: a.selected });
@@ -393,6 +405,7 @@ function renderDetail() {
   body.querySelectorAll(".moment").forEach((el) => {
     el.onclick = (e) => {
       if (e.target.classList.contains("tm")) return copy(e.target.dataset.c);
+      if (e.target.dataset.pv) return openPreview(Number(e.target.dataset.pv));
       const r = Number(el.dataset.r);
       sel.has(r) ? sel.delete(r) : sel.add(r);
       el.classList.toggle("on", sel.has(r));
@@ -509,6 +522,117 @@ $("deleteBtn").onclick = async () => {
   toast("Kayıt silindi");
 };
 
+// ---------- ÖNİZLEME ----------
+const pv = { hls: null, m: null, start: 0, end: 0, w0: 0, w1: 1, stopAt: null };
+function pvRender() {
+  const span = pv.w1 - pv.w0;
+  const pct = (t) => ((t - pv.w0) / span) * 100;
+  $("pvSel").style.left = pct(pv.start) + "%";
+  $("pvSel").style.width = Math.max(0.5, pct(pv.end) - pct(pv.start)) + "%";
+  $("pvStart").textContent = hms(pv.start);
+  $("pvEnd").textContent = hms(pv.end);
+  $("pvT0").textContent = hms(pv.w0);
+  $("pvT1").textContent = hms(pv.w1);
+  $("pvLen").textContent = `Klip uzunluğu: ${Math.round(pv.end - pv.start)} sn`;
+}
+function pvSetWindow() {
+  pv.w0 = Math.max(0, Math.min(pv.start, pv.m.vodPeak ?? pv.m.peak) - 45);
+  pv.w1 = Math.max(pv.end, pv.m.vodPeak ?? pv.m.peak) + 45;
+}
+async function openPreview(rank) {
+  const a = detailData.analysis;
+  const m = a.moments.find((x) => x.rank === rank);
+  if (!m) return;
+  pv.m = m;
+  pv.start = m.adjStart != null ? m.adjStart : m.vodStart ?? m.start;
+  pv.end = m.adjStart != null ? m.adjEnd : m.vodEnd ?? m.end;
+  pvSetWindow();
+  $("pvTitle").textContent = `#${m.rank} · ${TYPE[m.type] || ""}${m.keyword ? ": " + m.keyword : ""} · ${hms(m.vodPeak ?? m.peak)}`;
+  $("preview").classList.remove("hidden");
+  $("pvMsg").textContent = "Yayın kaydı (VOD) yükleniyor...";
+  pvRender();
+  const vodUrl = ($("vodUrl") && $("vodUrl").value.trim()) || null;
+  const r = await api.sessionVod({ id: detailId, part: m.part || 0, vodUrl });
+  if (r.error) {
+    $("pvMsg").textContent = r.error;
+    if (r.needVodUrl) { const det = document.querySelector("#detailBody details"); if (det) det.open = true; }
+    return;
+  }
+  const v = $("pvVideo");
+  if (pv.hls) { pv.hls.destroy(); pv.hls = null; }
+  const seekStart = () => { v.currentTime = pv.start; $("pvMsg").textContent = ""; };
+  if (window.Hls && Hls.isSupported() && /\.m3u8/i.test(r.source)) {
+    pv.hls = new Hls({ startPosition: pv.start, maxBufferLength: 30 });
+    pv.hls.loadSource(r.source);
+    pv.hls.attachMedia(v);
+    pv.hls.on(Hls.Events.MANIFEST_PARSED, seekStart);
+    pv.hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) $("pvMsg").textContent = "Video yüklenemedi: " + (d.details || d.type); });
+  } else {
+    v.src = r.source;
+    v.onloadedmetadata = seekStart;
+  }
+}
+function closePreview() {
+  const v = $("pvVideo");
+  v.pause();
+  if (pv.hls) { pv.hls.destroy(); pv.hls = null; }
+  v.removeAttribute("src");
+  v.load();
+  $("preview").classList.add("hidden");
+}
+$("pvClose").onclick = closePreview;
+$("pvVideo").ontimeupdate = () => {
+  const v = $("pvVideo");
+  const t = v.currentTime;
+  if (t < pv.w0 || t > pv.w1) { pv.w0 = Math.max(0, Math.min(pv.w0, t - 10)); pv.w1 = Math.max(pv.w1, t + 10); pvRender(); }
+  $("pvPlayhead").style.left = ((t - pv.w0) / (pv.w1 - pv.w0)) * 100 + "%";
+  if (pv.stopAt != null && t >= pv.stopAt) { v.pause(); pv.stopAt = null; }
+};
+document.querySelectorAll("[data-adj]").forEach((b) => (b.onclick = () => {
+  const [w, d] = b.dataset.adj.split(":");
+  if (w === "s") pv.start = Math.max(0, Math.min(pv.end - 1, pv.start + Number(d)));
+  else pv.end = Math.max(pv.start + 1, pv.end + Number(d));
+  pvRender();
+  $("pvVideo").currentTime = w === "s" ? pv.start : Math.max(pv.start, pv.end - 3);
+}));
+$("pvSetStart").onclick = () => { pv.start = Math.min($("pvVideo").currentTime, pv.end - 1); pvRender(); };
+$("pvSetEnd").onclick = () => { pv.end = Math.max($("pvVideo").currentTime, pv.start + 1); pvRender(); };
+$("pvPlaySel").onclick = () => { const v = $("pvVideo"); v.currentTime = pv.start; pv.stopAt = pv.end; v.play().catch(() => {}); };
+$("pvReset").onclick = async () => {
+  await api.sessionAdjust({ id: detailId, rank: pv.m.rank, start: null });
+  delete pv.m.adjStart; delete pv.m.adjEnd;
+  pv.start = pv.m.vodStart ?? pv.m.start; pv.end = pv.m.vodEnd ?? pv.m.end;
+  pvRender(); renderDetail(); toast("Otomatik zamanlara dönüldü");
+};
+$("pvSave").onclick = async () => {
+  const r = await api.sessionAdjust({ id: detailId, rank: pv.m.rank, start: pv.start, end: pv.end });
+  if (r.error) return toast(r.error);
+  pv.m.adjStart = r.moment.adjStart; pv.m.adjEnd = r.moment.adjEnd;
+  renderDetail();
+  closePreview();
+  toast(`#${pv.m.rank} kaydedildi: ${hms(pv.start)} → ${hms(pv.end)}`);
+};
+// Zaman çubuğu: tıkla = git, kenarları sürükle = başlangıç/bitiş
+(() => {
+  const track = $("pvTrack");
+  const toT = (x) => { const r = track.getBoundingClientRect(); return pv.w0 + Math.min(1, Math.max(0, (x - r.left) / r.width)) * (pv.w1 - pv.w0); };
+  let drag = null;
+  $("pvHL").onmousedown = (e) => { drag = "s"; e.stopPropagation(); e.preventDefault(); };
+  $("pvHR").onmousedown = (e) => { drag = "e"; e.stopPropagation(); e.preventDefault(); };
+  track.onmousedown = (e) => { if (!drag) $("pvVideo").currentTime = toT(e.clientX); };
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    const t = toT(e.clientX);
+    if (drag === "s") pv.start = Math.max(0, Math.min(t, pv.end - 1));
+    else pv.end = Math.max(t, pv.start + 1);
+    pvRender();
+  });
+  window.addEventListener("mouseup", () => {
+    if (drag) $("pvVideo").currentTime = drag === "s" ? pv.start : Math.max(pv.start, pv.end - 3);
+    drag = null;
+  });
+})();
+
 // ---------- AYARLAR ----------
 function fillSettings() {
   $("sChannels").value = settings.channels.join(", ");
@@ -516,7 +640,13 @@ function fillSettings() {
   $("sBefore").value = settings.clipBefore;
   $("sAfter").value = settings.clipAfter;
   $("sCount").value = settings.momentCount;
-  $("sAuto").value = settings.autoSelect;
+  $("sAutoSel").value = settings.autoSelect;
+  $("sKeywords").value = (settings.keywords || []).join(", ");
+  $("sFormat").value = settings.clipFormat || "yatay";
+  $("sVStyle").value = settings.verticalStyle || "bulanik";
+  $("sTray").checked = !!settings.closeToTray;
+  $("sStartup").checked = !!settings.startWithWindows;
+  $("sAuto").checked = !!settings.autoConnect;
   $("sDelay").value = settings.chatDelay;
   $("sOffset").value = settings.offset;
   $("sPrecise").checked = !!settings.precise;
@@ -533,7 +663,13 @@ $("saveBtn").onclick = async () => {
     clipBefore: n("sBefore", 45),
     clipAfter: n("sAfter", 15),
     momentCount: n("sCount", 25),
-    autoSelect: n("sAuto", 10),
+    autoSelect: n("sAutoSel", 10),
+    keywords: $("sKeywords").value.split(",").map((s) => s.trim()).filter(Boolean),
+    clipFormat: $("sFormat").value,
+    verticalStyle: $("sVStyle").value,
+    closeToTray: $("sTray").checked,
+    startWithWindows: $("sStartup").checked,
+    autoConnect: $("sAuto").checked,
     chatDelay: n("sDelay", 8),
     offset: n("sOffset", 0),
     precise: $("sPrecise").checked,
@@ -542,6 +678,12 @@ $("saveBtn").onclick = async () => {
   $("saveMsg").textContent = "Kaydedildi ✓";
   setTimeout(() => ($("saveMsg").textContent = ""), 2000);
 };
+
+api.onSettingsChanged((st) => {
+  settings = st;
+  fillSettings();
+});
+api.onAutoConnected(({ streamer }) => toast(`${streamer} yayına girdi, kayıt otomatik başladı`));
 
 // ---------- başlat ----------
 (async () => {
