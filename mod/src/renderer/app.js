@@ -122,11 +122,23 @@ async function doConnect() {
   msgCount = flagCount = 0;
   avatar($("chanAvatar"), r.channel.name, r.channel.avatar);
   $("chanName").textContent = r.channel.name;
-  $("chanLive").classList.toggle("hidden", !r.channel.live);
-  $("chanSub").textContent = r.channel.live ? `${(r.channel.viewers || 0).toLocaleString("tr-TR")} izleyici` : "yayında değil";
+  showLive(r.channel);
   renderSuspects();
   renderPanelState();
 }
+function showLive(c) {
+  $("chanLive").classList.toggle("hidden", !c.live);
+  $("chanOff").classList.toggle("hidden", !!c.live);
+  $("chanSub").textContent = c.live
+    ? [c.viewers != null ? `${Number(c.viewers).toLocaleString("tr-TR")} izleyici` : "", c.title || ""].filter(Boolean).join(" · ")
+    : "Yayın kapalı · chat dinleniyor";
+  $("chanSub").title = c.live && c.title ? c.title : "";
+}
+api.onLive((c) => {
+  if (!connected) return;
+  showLive(c);
+  if (c.changed) toast(c.live ? "🔴 Yayın başladı — tarama devam ediyor" : "Yayın bitti — yayın dışı bağlantıda dinlemeye devam");
+});
 $("connectBtn").onclick = doConnect;
 $("slugInput").onkeydown = (e) => { if (e.key === "Enter") doConnect(); };
 $("leaveBtn").onclick = async () => {

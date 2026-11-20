@@ -120,8 +120,33 @@ function flushOut() {
   send("chat:batch", { messages: batch.map((b) => b.msg), users: [...users.values()].map(summary), relabels: batch.map((b) => b.relabel).filter(Boolean) });
 }
 
+// Yayın durumu: bağlantı yayın açık ya da kapalıyken sürer; sadece etiket değişir.
+let liveTimer = null;
+function liveInfo() {
+  const i = live.info;
+  return { live: i.live, title: i.livestream && i.livestream.title, viewers: i.livestream && i.livestream.viewers };
+}
+function setLive(on, extra = {}) {
+  const was = live.info.live;
+  live.info.live = on;
+  if (on) live.info.livestream = { ...(live.info.livestream || {}), ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v != null)) };
+  else live.info.livestream = null;
+  send("chat:live", { ...liveInfo(), changed: was !== on });
+}
+async function refreshLive(rec) {
+  if (!live || live.recorder !== rec) return;
+  try {
+    const i = await kick.getChannel(live.slug);
+    if (!live || live.recorder !== rec || i.notFound) return;
+    live.info.livestream = i.livestream;
+    setLive(i.live, i.livestream ? { title: i.livestream.title, viewers: i.livestream.viewers } : {});
+  } catch (_) {}
+}
+
 function disconnect() {
   if (!live) return;
+  clearInterval(liveTimer);
+  liveTimer = null;
   live.recorder.stop();
   live = null;
   clearInterval(flushTimer);
@@ -166,7 +191,15 @@ ipcMain.handle("chat:connect", async (_, slugIn) => {
     }
   });
   rec.on("modEvent", (e) => send("chat:modEvent", e));
+  rec.on("streamStarted", (ls) => {
+    if (!live || live.recorder !== rec) return;
+    setLive(true, ls ? { title: ls.session_title || ls.title, viewers: ls.viewer_count || ls.viewers } : {});
+    setTimeout(() => refreshLive(rec), 15000); // başlık/izleyici sayısını Kick'ten tazele
+  });
+  rec.on("streamEnded", () => live && live.recorder === rec && setLive(false));
   rec.start();
+  clearInterval(liveTimer);
+  liveTimer = setInterval(() => refreshLive(rec), 2 * 60 * 1000);
   flushTimer = setInterval(flushOut, 200);
   saveSettings({ lastChannel: info.slug });
   return { ok: true, channel: { slug: info.slug, name: info.username, avatar: info.avatar, live: info.live, title: info.livestream && info.livestream.title, viewers: info.livestream && info.livestream.viewers } };

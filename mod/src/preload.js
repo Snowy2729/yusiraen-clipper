@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("api", {
   updateInstall: invoke("update:install"),
   onBatch: on("chat:batch"),
   onStatus: on("chat:status"),
+  onLive: on("chat:live"),
   onDisconnected: on("chat:disconnected"),
   onModEvent: on("chat:modEvent"),
   onUpdateAvailable: on("update:available"),

@@ -1,0 +1,3 @@
+- **Yayın kapalıyken de bağlanma:** Kanal yayında değilken chate bağlanılır, üstte **YAYIN DIŞI BAĞLANTI** etiketi görünür
+- Yayın başlayınca etiket kendiliğinden **● CANLI** olur, yayın bitince yayın dışı bağlantıya geri döner; bağlantı kopmaz, tarama hiç durmaz
+- Yayın başladı/bitti bildirimi ve canlıyken yayın başlığı ile izleyici sayısı
