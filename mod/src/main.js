@@ -28,6 +28,8 @@ function suspectList() {
 const DEFAULTS = {
   lastChannel: "",
   customWords: [],
+  spoiler: true,
+  spoilerWords: [],
   profanity: true,
   insults: true,
   threats: true,

@@ -1,0 +1,5 @@
+- **GTA 6 spoiler algılama** (yeni kategori: Spoiler)
+  - Hazır kalıplar: karakter adı (Jason, Lucia, Cal, Boobie, Dre'Quan, Raul, Brian, Real Dimez...) ya da "oyunun sonunda / son görevde / finalde" gibi bir ifade, yanında "ölüyor, öldürüyor, hain çıkıyor, ihanet ediyor, yakalanıyor, hapse giriyor, evleniyor, aslında polis çıkıyor" gibi olay anlatan bir fiille geçerse → Spoiler (orta önem)
+  - "spoiler: ..." diye başlayan uzun mesajlar da yakalanır; "spoiler vermeyin", "spoiler var mı" gibi uyarılar yakalanmaz
+  - Soru cümleleri ("Lucia ölüyor mu?") ve oyun içi anlık sözler ("öldün abi", "ölüyorum gülmekten") spoiler sayılmaz
+  - **Ayarlar → Spoiler kelimeleri:** oyun ilerledikçe çıkan görev adlarını, sürpriz karakterleri buraya yaz; geçen mesaj doğrudan Spoiler (yüksek önem) olur

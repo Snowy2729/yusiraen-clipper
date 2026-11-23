@@ -40,6 +40,11 @@ expect("https://kick.com/rraenee/clips/clip_01ABC discord.gg/xyz", "link");
 { const sd = new Detector({ ignoreMods: false }); const C = "https://kick.com/rraenee/clips/clip_01M7WYSZ8HFKBMXQJP8P1QAARN";
   for (let i = 0; i < 4; i++) sd.analyze({ t: (t += 15000), u: "clipci", m: C, id: "cl" + i });
   n++; const k = sd.users.get("clipci").msgs.filter((e) => e.flags.some((f) => f.cat === "spam")).length; if (k !== 4) { fail++; console.log(`✗ aynı clip linki 4 kez → ${k}/4 spam`); } }
+// GTA 6 spoiler
+for (const m of ["Lucia sonunda ölüyor", "brian hain çıkıyor", "jasonu cal öldürüyor", "oyunun sonunda herkes ölüyor", "son görevde raul ihanet ediyor", "spoiler: lucia aslında polis çıkıyor", "Boobie ölecek", "dre quan ölüyor", "Jason hapse giriyor sonunda", "Lucia ile Jason evleniyor"]) expect(m, "spoiler");
+for (const m of ["spoiler vermeyin lütfen", "abi öldün yine", "jason öldün abi", "lucia ölüyor mu?", "lucia çok güzel", "şarkıyı çal", "son görev neydi abi", "oyunun sonu ne zaman bitecek", "spoiler var mı", "raul kimdi abi", "ölüyorum gülmekten"]) expect(m, null);
+{ const sd = new Detector({ ignoreMods: false, spoilerWords: ["Kayıp Hazine"] }); n++;
+  if (!sd.analyze({ t: (t += 1000), u: "sp", m: "kayıp hazine görevini yaptın mı" }).entry.flags.some((f) => f.cat === "spoiler")) { fail++; console.log("✗ spoiler kelimesi yakalanmadı"); } }
 for (const m of ["abiii naber", "gooool", "bekirrr gel", "çok iyi oynadın abi helal"]) expect(m, null);
 console.log(`${n - fail}/${n} doğru`);
 process.exit(fail ? 1 : 0);

@@ -12,8 +12,8 @@ let pausedNew = 0;
 let msgCount = 0;
 let flagCount = 0;
 const MAX_FEED = 500;
-const CAT_LABEL = { kufur: "Küfür", gizli: "Gizli küfür", supheli: "Şüpheli kelime", akrostis: "Akrostiş", mustehcen: "+18", hakaret: "Hakaret", tehdit: "Tehdit", kavga: "Kavga", spam: "Spam", kirlilik: "Sohbet kirliliği", flood: "Flood", caps: "Caps", link: "Link", ozel: "Özel kelime" };
-const CAT_SEV = { kufur: 3, gizli: 3, akrostis: 3, tehdit: 3, kavga: 3, ozel: 3, mustehcen: 2, supheli: 2, hakaret: 2, link: 2, flood: 2, spam: 1, kirlilik: 1, caps: 1 };
+const CAT_LABEL = { kufur: "Küfür", gizli: "Gizli küfür", supheli: "Şüpheli kelime", akrostis: "Akrostiş", mustehcen: "+18", hakaret: "Hakaret", tehdit: "Tehdit", kavga: "Kavga", spam: "Spam", kirlilik: "Sohbet kirliliği", flood: "Flood", caps: "Caps", link: "Link", ozel: "Özel kelime", spoiler: "Spoiler" };
+const CAT_SEV = { spoiler: 3, kufur: 3, gizli: 3, akrostis: 3, tehdit: 3, kavga: 3, ozel: 3, mustehcen: 2, supheli: 2, hakaret: 2, link: 2, flood: 2, spam: 1, kirlilik: 1, caps: 1 };
 
 // ---------- yardımcılar ----------
 function esc(t) {
@@ -227,7 +227,7 @@ api.onModEvent((e) => {
 // Gizli küfür / akrostiş / +18 için "neden yakalandı" açıklaması: "≈ porno", "→ yarak", "YARRAK (6 mesajın ilk harfi)"
 function hintFor(last) {
   if (!last || !last.flags) return "";
-  const f = last.flags.find((x) => x.cat === "gizli" || x.cat === "supheli" || x.cat === "akrostis" || x.cat === "mustehcen" || (x.cat === "kufur" && /→/.test(x.match || "")));
+  const f = last.flags.find((x) => x.cat === "gizli" || x.cat === "supheli" || x.cat === "spoiler" || x.cat === "akrostis" || x.cat === "mustehcen" || (x.cat === "kufur" && /→/.test(x.match || "")));
   if (!f || !f.match) return "";
   const m = f.cat === "akrostis" ? f.match : (f.match.match(/[→≈]\s*(.+)$/) || [null, f.match])[1];
   const sym = f.cat === "akrostis" ? "" : /≈/.test(f.match) ? "≈ " : "→ ";
@@ -509,13 +509,16 @@ $("savedSort").querySelectorAll("button").forEach((b) => (b.onclick = () => {
 async function fillSettings() {
   settings = await api.settingsGet();
   $("wordsIn").value = (settings.customWords || []).join("\n");
-  const map = { cPollution: "pollution", cHidden: "hidden", cAcrostic: "acrostic", cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
+  $("spoilerIn").value = (settings.spoilerWords || []).join("\n");
+  const map = { cSpoiler: "spoiler", cPollution: "pollution", cHidden: "hidden", cAcrostic: "acrostic", cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
   for (const [id, k] of Object.entries(map)) $(id).checked = !!settings[k];
   $("verTxt").textContent = "v" + (await api.appVersion());
 }
 $("saveDet").onclick = async () => {
   settings = await api.settingsSave({
     customWords: $("wordsIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
+    spoilerWords: $("spoilerIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
+    spoiler: $("cSpoiler").checked,
     hidden: $("cHidden").checked, acrostic: $("cAcrostic").checked,
     profanity: $("cProfanity").checked, insults: $("cInsults").checked, threats: $("cThreats").checked, fights: $("cFights").checked,
     spam: $("cSpam").checked, pollution: $("cPollution").checked, caps: $("cCaps").checked, links: $("cLinks").checked,

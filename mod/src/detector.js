@@ -170,6 +170,38 @@ function shortRootHit(rt) {
   return root;
 }
 
+// ---------- GTA 6 spoiler ----------
+// Hikâyeyi bilmeden spoiler: "karakter/hikâye bağlamı" + "olay anlatan fiil" aynı mesajda (ve soru değilse).
+// Oyun ilerledikçe çıkan görev adları / sürpriz karakterler için ayarlardaki "Spoiler kelimeleri" listesi var.
+const SP_ENT = ["lucia", "lusia", "lucya", "jason", "ceysin", "ceyson", "ceysun", "jayson", "boobie", "bubi", "drequan", "raul", "brian", "brayn", "lori", "baeluxe", "roxy", "realdimez", "dimez", "mendez", "wyman", "stefanie", "hampton"];
+const SP_CONTEXT = /(?<!\p{L})(?:oyunun son|sonunda|son görev|son bölüm|finalde|finali|ending|hikayenin son|hikâyenin son|hikayede|hikâyede|ana görevde|ileride|ilerde|birazdan|sonraki görev|ikinci yarı)/u;
+const SP_REVEAL = /(?<!\p{L})(?:öl(?:üyor(?!um|sun|uz)|ecek(?!sin|im|iz)|müş(?!sün|üm|üz))|öldür(?:üyor(?!um|sun|uz)|ecek(?!sin|im|iz)|müş(?!sün|üm|üz)|ülüyor|ülecek|ülmüş)|olecek(?!sin|im)|oldur(?:uyor|ecek|mus)(?!um|sun)|hain|ihanet|sat(?:ıyor|acak|mış)(?!um|sın|sun)\b|ele ver(?:iyor|ecek|miş)|ispiyon|tutuklan(?:ıyor|acak|mış)|hapse? (?:gir|düş|atıl)(?:iyor|ecek|miş|üyor|ıyor|acak|mış)|yakalan(?:ıyor|acak|mış)(?!ım|sın)|evlen(?:iyor|ecek|miş)(?!um|sin)|ayrıl(?:ıyor|acak|mış)(?!ım|sın)|terk ed(?:iyor|ecek)|kurtul(?:uyor|amıyor|acak)(?!um|sun)|ortaya çık(?:ıyor|acak|mış)|kötü adam|aslında .{0,30}(?:çıkıyor|çıkacak)|polis çıkıyor|ajan çıkıyor)/u;
+const SP_NEG = /spoi?ler ?(ver(me|meyin|mesin|meyelim)|atma|yapma|yok|var ?m)|spoilerlama|spoiler gelmesin/u;
+function spoilerCheck(raw, tokens) {
+  const low = String(raw).toLocaleLowerCase("tr-TR").replace(/i̇/g, "i");
+  const isQ = /\?\s*$/.test(low) || /\s(mi|mı|mu|mü|miydi|mıydı)\s*\??\s*$/.test(low);
+  // kelime sırası: isim/bağlam ile olay fiili en fazla 5 kelime arayla olmalı
+  const words = low.split(/\s+/).filter(Boolean);
+  const wIdx = (ci) => low.slice(0, ci).split(/\s+/).filter(Boolean).length;
+  const ents = SP_ENT.map(collapse);
+  const entPos = [];
+  words.forEach((w, i) => {
+    const f = collapse(fold(w).replace(/[^a-z]/g, ""));
+    if (ents.some((e) => f.startsWith(e)) || /^cal('|$)/.test(w) || (i + 1 < words.length && ["drequan", "realdimez", "baeluxe", "calhampton"].includes(f + collapse(fold(words[i + 1]).replace(/[^a-z]/g, ""))))) entPos.push([i, w]);
+  });
+  const rev = low.match(SP_REVEAL);
+  if (!isQ && rev) {
+    const rp = wIdx(rev.index);
+    const e = entPos.find(([i]) => Math.abs(i - rp) <= 5);
+    const ctx = low.match(SP_CONTEXT);
+    const cp = ctx ? wIdx(ctx.index) : -99;
+    if (e) return `${e[1]} + ${rev[0].trim()}`;
+    if (ctx && Math.abs(cp - rp) <= 5) return `${ctx[0]} + ${rev[0].trim()}`;
+  }
+  if (!SP_NEG.test(low) && /spoi?ler|spoyler|spoil/.test(low) && wordCount(raw) >= 4) return "spoiler yazısı";
+  return null;
+}
+
 // ---------- Harf değiştirme: ağırlıklı benzerlik ----------
 const SIMILAR = [["b", "p"], ["d", "t"], ["c", "j"], ["g", "k"], ["k", "q"], ["s", "z"], ["v", "w"], ["f", "v"], ["x", "k"]];
 const SIM = new Set(SIMILAR.flatMap(([a, b]) => [a + b, b + a]));
@@ -227,6 +259,7 @@ const CATS = {
   caps: "Caps",
   link: "Link",
   ozel: "Özel kelime",
+  spoiler: "Spoiler",
 };
 
 const INSULT_EXACT = [
@@ -464,12 +497,17 @@ class Detector {
   }
 
   setOptions(o) {
-    this.opt = { profanity: true, insults: true, threats: true, spam: true, caps: true, links: true, fights: true, hidden: true, acrostic: true, ignoreMods: true, ignoreSubs: false, pollution: true, customWords: [], ...this.opt, ...o };
+    this.opt = { profanity: true, insults: true, threats: true, spam: true, caps: true, links: true, fights: true, hidden: true, acrostic: true, ignoreMods: true, ignoreSubs: false, pollution: true, spoiler: true, customWords: [], spoilerWords: [], ...this.opt, ...o };
     this.custom = (this.opt.customWords || [])
       .map((w) => String(w).trim())
       .filter((w) => w.length >= 2)
       .map((w) => ({ word: w, norm: normalize(w).tokens.join(" ") }))
       .filter((c) => c.norm.length >= 2);
+    this.spoilerWords = (this.opt.spoilerWords || [])
+      .map((w) => String(w).trim())
+      .filter((w) => w.length >= 3)
+      .map((w) => ({ word: w, norm: normalize(w).tokens.join(" ") }))
+      .filter((c) => c.norm.length >= 3);
   }
 
   reset() {
@@ -511,6 +549,15 @@ class Detector {
           ? flat.includes(" " + c.norm + " ") || flat.replace(/ /g, "").includes(c.norm.replace(/ /g, ""))
           : tokens.some((t) => t === c.norm || (c.norm.length >= 4 && (t.startsWith(c.norm) || (t.length >= 6 && t.includes(c.norm)) || (c.norm.length >= 5 && fuzzyMatch(t, c.norm, 1.0) != null))));
         if (hit) add("ozel", 3, c.word);
+      }
+      if (this.opt.spoiler) {
+        const sw = this.spoilerWords.find((c) => (c.norm.includes(" ") ? flat.includes(" " + c.norm + " ") || flat.replace(/ /g, "").includes(c.norm.replace(/ /g, "")) : tokens.some((t) => t === c.norm || (c.norm.length >= 4 && t.startsWith(c.norm)))));
+        // senin listen: kesin (yüksek); hazır kalıplar: tahmin (orta)
+        if (sw) add("spoiler", 3, sw.word);
+        else {
+          const sp = spoilerCheck(raw, tokens);
+          if (sp) add("spoiler", 2, sp);
+        }
       }
       const directed = /@\w/.test(raw) || tokens.some((t) => DIRECT_TOKENS.has(t));
       if (this.opt.profanity) {
