@@ -30,6 +30,7 @@ const DEFAULTS = {
   customWords: [],
   spoiler: true,
   spoilerWords: [],
+  chapterNow: 0,
   profanity: true,
   insults: true,
   threats: true,

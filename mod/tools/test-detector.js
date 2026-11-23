@@ -45,6 +45,11 @@ for (const m of ["Lucia sonunda ölüyor", "brian hain çıkıyor", "jasonu cal 
 for (const m of ["spoiler vermeyin lütfen", "abi öldün yine", "jason öldün abi", "lucia ölüyor mu?", "lucia çok güzel", "şarkıyı çal", "son görev neydi abi", "oyunun sonu ne zaman bitecek", "spoiler var mı", "raul kimdi abi", "ölüyorum gülmekten"]) expect(m, null);
 { const sd = new Detector({ ignoreMods: false, spoilerWords: ["Kayıp Hazine"] }); n++;
   if (!sd.analyze({ t: (t += 1000), u: "sp", m: "kayıp hazine görevini yaptın mı" }).entry.flags.some((f) => f.cat === "spoiler")) { fail++; console.log("✗ spoiler kelimesi yakalanmadı"); } }
+// tahmin kılığında spoiler ve ileriki bölüm
+for (const m of ["lucianın telefonunda bi fotoğraf var bizi chapter 4de spor salonunda bi siyahiyle fotoğrafı", "Bence bu siyahi adamla aldatıcak bizi", "göreceksiniz brian bizi satacak", "kesin raul ihanet edicek demedi demeyin", "5. görevde cal ölüyor", "tahminim sevgilisi polise ispiyonlayacak"]) expect(m, "spoiler");
+for (const m of ["bence bu görev zor", "bence jason çok iyi", "kesin öleceğiz", "bölüm 2 ne zaman", "chapter 3 kaç saat sürüyor", "galiba yayın donuyor", "kesin bugün gta açacak", "4. görevi geçtik sonunda", "bence abi bizi öldürecekler bu polisler"]) expect(m, null);
+{ const cd = (m) => new Detector({ ignoreMods: false, chapterNow: 3 }).analyze({ t: (t += 1000), u: "ch", m }).entry.flags.filter((f) => f.cat === "spoiler");
+  for (const [m, want] of [["chapter 5 çok iyi", 3], ["4. bölüm efsane", 3], ["chapter 2 güzeldi", 0], ["chapter 5 ne zaman gelir", 0]]) { n++; const f = cd(m); const got = f.length ? f[0].sev : 0; if (got !== want) { fail++; console.log(`✗ bölüm kuralı: ${m} → ${got}, beklenen ${want}`); } } }
 for (const m of ["abiii naber", "gooool", "bekirrr gel", "çok iyi oynadın abi helal"]) expect(m, null);
 console.log(`${n - fail}/${n} doğru`);
 process.exit(fail ? 1 : 0);

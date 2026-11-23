@@ -98,7 +98,9 @@
         <label class="field"><span>Spoiler kelimeleri <span class="muted xs">(oyun ilerledikçe çıkan görev adları, sürpriz karakterler, olaylar; bunlardan biri geçen mesaj doğrudan spoiler sayılır. Jason, Lucia, Cal, Boobie, Dre'Quan, Raul, Brian, Real Dimez zaten tanınıyor)</span></span>
           <textarea id="spoilerIn" rows="4" spellcheck="false" placeholder="ör.&#10;görev adı&#10;sürpriz karakterin adı"></textarea></label>
         <div class="checks">
-          <label class="check"><input type="checkbox" id="cSpoiler"> GTA 6 spoiler (karakter adı + "ölüyor / hain çıkıyor / sonunda..." gibi olay anlatımı)</label>
+          <label class="field inline"><span>Yayıncı şu an kaçıncı bölümde (chapter) <span class="muted xs">(0 = bilinmiyor; girersen daha ileri bölüm numarası geçen her mesaj kesin spoiler sayılır)</span></span>
+            <input type="number" id="chapterIn" min="0" max="99" value="0" style="width:80px"></label>
+          <label class="check"><input type="checkbox" id="cSpoiler"> GTA 6 spoiler (karakter adı + "ölüyor / hain çıkıyor / sonunda..." gibi olay anlatımı, "bence ... aldatacak" gibi tahmin kılığında olanlar, ileriki bölümden bahsedenler)</label>
           <label class="check"><input type="checkbox" id="cProfanity"> Küfür</label>
           <label class="check"><input type="checkbox" id="cHidden"> Gizli küfür (harf yığınına saklama, harf değiştirme, kelime içinde oç/piç/sik) ve +18</label>
           <label class="check"><input type="checkbox" id="cAcrostic"> Akrostiş (mesajların ilk harfleri)</label>

@@ -510,6 +510,7 @@ async function fillSettings() {
   settings = await api.settingsGet();
   $("wordsIn").value = (settings.customWords || []).join("\n");
   $("spoilerIn").value = (settings.spoilerWords || []).join("\n");
+  $("chapterIn").value = settings.chapterNow || 0;
   const map = { cSpoiler: "spoiler", cPollution: "pollution", cHidden: "hidden", cAcrostic: "acrostic", cProfanity: "profanity", cInsults: "insults", cThreats: "threats", cFights: "fights", cSpam: "spam", cCaps: "caps", cLinks: "links", cIgnoreMods: "ignoreMods", cIgnoreSubs: "ignoreSubs", cSound: "sound" };
   for (const [id, k] of Object.entries(map)) $(id).checked = !!settings[k];
   $("verTxt").textContent = "v" + (await api.appVersion());
@@ -519,6 +520,7 @@ $("saveDet").onclick = async () => {
     customWords: $("wordsIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
     spoilerWords: $("spoilerIn").value.split(/\n|,/).map((s) => s.trim()).filter(Boolean),
     spoiler: $("cSpoiler").checked,
+    chapterNow: Math.max(0, Math.min(99, parseInt($("chapterIn").value, 10) || 0)),
     hidden: $("cHidden").checked, acrostic: $("cAcrostic").checked,
     profanity: $("cProfanity").checked, insults: $("cInsults").checked, threats: $("cThreats").checked, fights: $("cFights").checked,
     spam: $("cSpam").checked, pollution: $("cPollution").checked, caps: $("cCaps").checked, links: $("cLinks").checked,

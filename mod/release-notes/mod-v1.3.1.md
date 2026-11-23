@@ -1,0 +1,4 @@
+- **Tahmin kılığında spoiler:** "bence / galiba / kesin / göreceksiniz / demedi demeyin" + "aldatacak, satacak, ihanet edecek, ispiyonlayacak..." + bir kişi ("bu adam", "sevgilisi", "bizi" ya da karakter adı) → Spoiler. Ör. "Bence bu siyahi adamla aldatıcak bizi"
+- **İleriki bölümden bahsetmek:** "chapter 4'te", "5. görevde", "ileriki bölümde" + karakter/olay → Spoiler. Ör. "lucianın telefonunda … chapter 4de spor salonunda…"
+- **Ayarlar → Yayıncı şu an kaçıncı bölümde:** girersen daha ileri bölüm numarası geçen her mesaj kesin spoiler (yüksek önem) sayılır; "chapter 5 ne zaman" gibi sorular sayılmaz
+- "kesin öleceğiz", "bence bu görev zor", "bizi öldürecekler bu polisler" gibi oyun içi sözler spoiler sayılmaz

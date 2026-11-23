@@ -175,11 +175,17 @@ function shortRootHit(rt) {
 // Oyun ilerledikçe çıkan görev adları / sürpriz karakterler için ayarlardaki "Spoiler kelimeleri" listesi var.
 const SP_ENT = ["lucia", "lusia", "lucya", "jason", "ceysin", "ceyson", "ceysun", "jayson", "boobie", "bubi", "drequan", "raul", "brian", "brayn", "lori", "baeluxe", "roxy", "realdimez", "dimez", "mendez", "wyman", "stefanie", "hampton"];
 const SP_CONTEXT = /(?<!\p{L})(?:oyunun son|sonunda|son görev|son bölüm|finalde|finali|ending|hikayenin son|hikâyenin son|hikayede|hikâyede|ana görevde|ileride|ilerde|birazdan|sonraki görev|ikinci yarı)/u;
-const SP_REVEAL = /(?<!\p{L})(?:öl(?:üyor(?!um|sun|uz)|ecek(?!sin|im|iz)|müş(?!sün|üm|üz))|öldür(?:üyor(?!um|sun|uz)|ecek(?!sin|im|iz)|müş(?!sün|üm|üz)|ülüyor|ülecek|ülmüş)|olecek(?!sin|im)|oldur(?:uyor|ecek|mus)(?!um|sun)|hain|ihanet|sat(?:ıyor|acak|mış)(?!um|sın|sun)\b|ele ver(?:iyor|ecek|miş)|ispiyon|tutuklan(?:ıyor|acak|mış)|hapse? (?:gir|düş|atıl)(?:iyor|ecek|miş|üyor|ıyor|acak|mış)|yakalan(?:ıyor|acak|mış)(?!ım|sın)|evlen(?:iyor|ecek|miş)(?!um|sin)|ayrıl(?:ıyor|acak|mış)(?!ım|sın)|terk ed(?:iyor|ecek)|kurtul(?:uyor|amıyor|acak)(?!um|sun)|ortaya çık(?:ıyor|acak|mış)|kötü adam|aslında .{0,30}(?:çıkıyor|çıkacak)|polis çıkıyor|ajan çıkıyor)/u;
+const SP_REVEAL = /(?<!\p{L})(?:öl(?:üyor(?!um|sun|uz)|ecek(?!sin|im|iz)|müş(?!sün|üm|üz))|öldür(?:üyor(?!um|sun|uz)|ecek(?!sin|im|iz)|müş(?!sün|üm|üz)|ülüyor|ülecek|ülmüş)|olecek(?!sin|im)|oldur(?:uyor|ecek|mus)(?!um|sun)|aldat(?:ıyor|acak|ıcak|mış)(?!um|sın|ım)|hain|ihanet|sat(?:ıyor|acak|mış)(?!um|sın|sun)\b|ele ver(?:iyor|ecek|miş)|ispiyon|tutuklan(?:ıyor|acak|mış)|hapse? (?:gir|düş|atıl)(?:iyor|ecek|miş|üyor|ıyor|acak|mış)|yakalan(?:ıyor|acak|mış)(?!ım|sın)|evlen(?:iyor|ecek|miş)(?!um|sin)|ayrıl(?:ıyor|acak|mış)(?!ım|sın)|terk ed(?:iyor|ecek)|kurtul(?:uyor|amıyor|acak)(?!um|sun)|ortaya çık(?:ıyor|acak|mış)|kötü adam|aslında .{0,30}(?:çıkıyor|çıkacak)|polis çıkıyor|ajan çıkıyor)/u;
 const SP_NEG = /spoi?ler ?(ver(me|meyin|mesin|meyelim)|atma|yapma|yok|var ?m)|spoilerlama|spoiler gelmesin/u;
-function spoilerCheck(raw, tokens) {
+// Tahmin kılığında spoiler: "bence bu adamla aldatacak bizi", "göreceksiniz brian satacak"
+const SP_HEDGE = /(?<!\p{L})(?:bence|bana göre|bana sorarsan|tahminim|tahminen|galiba|herhalde|heralde|sanki|kesin|kesinlikle|eminim|iddiaya gir|bahse gir|göreceksiniz|görürsünüz|izleyin görün|hatırlayın|demedi demeyin|dediğimi hatırla|not alın|kaydedin|ss alın|yazıyorum buraya)(?!\p{L})/u;
+const SP_FUT = /(?<!\p{L})(?:aldat|ihanet ?ed|sat|öl|öldür|terk ?ed|ayrıl|evlen|kaçır|kaç|vur|hamile kal|tutukla|yakala|ispiyonla|gammazla|ele ver|kurtar|geri dön|geri gel)(?:[aeıiuü]?y?[aeıi]?c[ae][kğ]|[ıiuü]?yor|m[ıiuü]ş)(?!sin|sın|im|ım|iz|ız|um|uz|sun|sunuz|ler|lar)/u;
+const SP_PERSON = /(?<!\p{L})(?:(?:bu|o|şu) (?:adam|kadın|kız|herif|tip|eleman|siyahi|zenci)|siyahi|sevgilisi|karısı|kocası|kardeşi|babası|annesi|patronu|ortağı|bizi|bize|bizim)(?!\p{L})/u;
+// İleriki bölüm: "chapter 4'te", "4. bölümde", "bölüm 5", "ileriki görevde"
+const SP_CHAPTER = /(?:chapter|bölüm|görev|mission)\s*(\d+)|(\d+)\s*\.?\s*(?:chapter|bölüm|görev|mission)|(?<!\p{L})(?:ileriki|sonraki|son) (?:bölüm|görev|chapter)/u;
+function spoilerCheck(raw, tokens, chapterNow = 0) {
   const low = String(raw).toLocaleLowerCase("tr-TR").replace(/i̇/g, "i");
-  const isQ = /\?\s*$/.test(low) || /\s(mi|mı|mu|mü|miydi|mıydı)\s*\??\s*$/.test(low);
+  const isQ = /\?\s*$/.test(low) || /\s(mi|mı|mu|mü|miydi|mıydı)\s*\??\s*$/.test(low) || /(?<!\p{L})(ne zaman|nasıl|neden|niye|hangi|kaçıncı)(?!\p{L})/u.test(low);
   // kelime sırası: isim/bağlam ile olay fiili en fazla 5 kelime arayla olmalı
   const words = low.split(/\s+/).filter(Boolean);
   const wIdx = (ci) => low.slice(0, ci).split(/\s+/).filter(Boolean).length;
@@ -198,6 +204,18 @@ function spoilerCheck(raw, tokens) {
     if (e) return `${e[1]} + ${rev[0].trim()}`;
     if (ctx && Math.abs(cp - rp) <= 5) return `${ctx[0]} + ${rev[0].trim()}`;
   }
+  const person = entPos.length ? entPos[0][1] : (low.match(SP_PERSON) || [])[0];
+  // ileriki bölüm numarası (yayıncının bulunduğu bölüm ayarlıysa)
+  const ch = low.match(SP_CHAPTER);
+  if (ch) {
+    const num = Number(ch[1] || ch[2] || 0);
+    if (!isQ && chapterNow > 0 && num > chapterNow) return { match: `ileriki bölüm: ${ch[0].trim()} (yayıncı ${chapterNow}. bölümde)`, sev: 3 };
+    if (!isQ && (person || rev || low.match(SP_FUT))) return `ileriki bölümden bahsediyor: ${ch[0].trim()}${person ? " + " + person : ""}`;
+  }
+  // tahmin kılığında
+  const hedge = low.match(SP_HEDGE);
+  const fut = low.match(SP_FUT);
+  if (!isQ && hedge && fut && person) return `tahmin kılığında: ${hedge[0]} … ${fut[0].trim()} (${person})`;
   if (!SP_NEG.test(low) && /spoi?ler|spoyler|spoil/.test(low) && wordCount(raw) >= 4) return "spoiler yazısı";
   return null;
 }
@@ -497,7 +515,7 @@ class Detector {
   }
 
   setOptions(o) {
-    this.opt = { profanity: true, insults: true, threats: true, spam: true, caps: true, links: true, fights: true, hidden: true, acrostic: true, ignoreMods: true, ignoreSubs: false, pollution: true, spoiler: true, customWords: [], spoilerWords: [], ...this.opt, ...o };
+    this.opt = { profanity: true, insults: true, threats: true, spam: true, caps: true, links: true, fights: true, hidden: true, acrostic: true, ignoreMods: true, ignoreSubs: false, pollution: true, spoiler: true, chapterNow: 0, customWords: [], spoilerWords: [], ...this.opt, ...o };
     this.custom = (this.opt.customWords || [])
       .map((w) => String(w).trim())
       .filter((w) => w.length >= 2)
@@ -555,8 +573,8 @@ class Detector {
         // senin listen: kesin (yüksek); hazır kalıplar: tahmin (orta)
         if (sw) add("spoiler", 3, sw.word);
         else {
-          const sp = spoilerCheck(raw, tokens);
-          if (sp) add("spoiler", 2, sp);
+          const sp = spoilerCheck(raw, tokens, Number(this.opt.chapterNow) || 0);
+          if (sp) typeof sp === "string" ? add("spoiler", 2, sp) : add("spoiler", sp.sev, sp.match);
         }
       }
       const directed = /@\w/.test(raw) || tokens.some((t) => DIRECT_TOKENS.has(t));
